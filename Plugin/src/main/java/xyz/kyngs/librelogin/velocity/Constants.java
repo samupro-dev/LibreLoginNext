@@ -6,6 +6,11 @@
 
 package xyz.kyngs.librelogin.velocity;
 
-public class Constants {
-    public static final Integer BSTATS_ID = 26573;
+/**
+ * Constant values and identifier definitions specific to the Velocity proxy platform
+ * implementation.
+ */
+public final class Constants {
+
+    private Constants() {}
 }

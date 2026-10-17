@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">LibreLogin Next</title>
+  <defs>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="0.5" stop-color="#818CF8"/>
+      <stop offset="1" stop-color="#C084FC"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(17.6 13.9) scale(0.92)">
+    <path d="M120 0 L228 40 V118 C228 186 182 226 120 248 C58 226 12 186 12 118 V40 Z"
+          fill="#0F172A" fill-opacity="0.85" stroke="url(#accent)" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M120 22 L208 54 V118 C208 172 172 205 120 225 C68 205 32 172 32 118 V54 Z"
+          fill="url(#accent)" fill-opacity="0.08"/>
+    <path d="M90 118 V96 C90 79 103 66 120 66 C137 66 150 79 150 96 V118"
+          fill="none" stroke="#E0E7FF" stroke-width="10" stroke-linecap="round"/>
+    <rect x="74" y="114" width="92" height="74" rx="14" fill="url(#accent)"/>
+    <circle cx="120" cy="144" r="10" fill="#0B1020"/>
+    <rect x="116" y="148" width="8" height="20" rx="4" fill="#0B1020"/>
+  </g>
+</svg>

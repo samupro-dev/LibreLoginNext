@@ -8,28 +8,24 @@ package xyz.kyngs.librelogin.api.premium;
 
 import java.util.UUID;
 
-/**
- * This interface handles {@link PremiumUser} fetching.
- *
- * @author kyngs
- */
+/** Service provider interface for querying official Mojang premium account metadata. */
 public interface PremiumProvider {
 
     /**
-     * This method fetches a user by their username.
+     * Looks up premium account details by Minecraft player username.
      *
-     * @param name The username of the user.
-     * @return The user, or null if the user does not exist.
-     * @throws PremiumException If the user could not be fetched.
+     * @param name the username to look up
+     * @return the {@link PremiumUser} details, or null if non-premium/not found
+     * @throws PremiumException if the lookup request fails due to rate limits or API errors
      */
     PremiumUser getUserForName(String name) throws PremiumException;
 
     /**
-     * This method fetches a user by their UUID.
+     * Looks up premium account details by official Mojang player UUID.
      *
-     * @param uuid The UUID of the user.
-     * @return The user, or null if the user does not exist.
-     * @throws PremiumException If the user could not be fetched.
+     * @param uuid the Mojang UUID to look up
+     * @return the {@link PremiumUser} details, or null if not found
+     * @throws PremiumException if the lookup request fails due to rate limits or API errors
      */
     PremiumUser getUserForUUID(UUID uuid) throws PremiumException;
 }

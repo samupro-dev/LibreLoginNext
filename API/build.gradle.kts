@@ -1,29 +1,16 @@
 plugins {
     id("java-library")
-    id("maven-publish")
-    id("java")
-}
-
-repositories {
-    mavenCentral()
 }
 
 dependencies {
-    api("javax.annotation:javax.annotation-api:1.3.2")
-    // TODO: remove unnecessary bungeecord dependency
-    compileOnly("net.kyori:adventure-platform-bungeecord:4.4.1")
-    compileOnly("com.google.guava:guava:33.4.8-jre")
+    api("org.jetbrains:annotations:26.1.0")
+    // Relocated Adventure types (xyz.kyngs.librelogin.lib.adventure) exposed by the public API.
+    api(project(path = ":Adventure", configuration = "relocated"))
+    compileOnly("com.google.guava:guava:32.1.3-jre")
 
-    testImplementation(platform("org.junit:junit-bom:5.13.4"))
+    testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-}
-
-tasks.test {
-    useJUnitPlatform()
-}
-
-tasks.withType<JavaCompile> {
-    options.compilerArgs.add("-parameters")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 java {
@@ -31,24 +18,20 @@ java {
     withJavadocJar()
 }
 
-publishing {
-    repositories {
-        maven {
-            name = "kyngsRepo"
-            url = uri(
-                "https://repo.kyngs.xyz/" + (if (project.version.toString()
-                        .contains("SNAPSHOT")
-                ) "snapshots" else "releases") + "/"
-            )
-            credentials(PasswordCredentials::class)
-            authentication {
-                create<BasicAuthentication>("basic")
-            }
-        }
+tasks.withType<JavaCompile>().configureEach {
+    // Keep parameter names in the class files for API consumers.
+    options.compilerArgs.add("-parameters")
+}
+
+tasks.withType<Jar>().configureEach {
+    archiveBaseName = "LibreLoginNext-API"
+    // Mozilla Public License 2.0 from the repository root, shipped with every published artifact.
+    // Stored as LICENSE.txt: bundled dependencies already contribute a LICENSE entry.
+    from(rootProject.layout.projectDirectory.file("LICENSE")) {
+        rename { "LICENSE.txt" }
     }
-    publications {
-        create<MavenPublication>("maven") {
-            from(components["java"])
-        }
-    }
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

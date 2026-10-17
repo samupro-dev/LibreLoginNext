@@ -9,24 +9,25 @@ package xyz.kyngs.librelogin.api.event;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * An abstract event for events, that require server choosing
+ * Event interface allowing listeners to inspect and override server routing decisions.
  *
- * @author kyngs
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  */
 public interface ServerChooseEvent<P, S> extends PlayerBasedEvent<P, S> {
 
     /**
-     * Gets the server
+     * Gets the chosen destination server.
      *
-     * @return null, if default will be used
+     * @return the destination server, or null if the default server will be used
      */
     @Nullable
     S getServer();
 
     /**
-     * Set the server
+     * Sets the destination server to connect the player to.
      *
-     * @param server the server, if null, the default will be used
+     * @param server the destination server, or null to revert to the default choice
      */
     void setServer(@Nullable S server);
 }

@@ -6,9 +6,5 @@
 
 package xyz.kyngs.librelogin.api.database.connector;
 
-/**
- * This interface represents a PostgresSQL database connector that extends the SQLDatabaseConnector
- * interface. It provides methods for connecting to a PostgresSQL database and executing SQL
- * queries.
- */
+/** Specialization of {@link SQLDatabaseConnector} for PostgreSQL database backends. */
 public interface PostgreSQLDatabaseConnector extends SQLDatabaseConnector {}

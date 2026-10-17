@@ -9,23 +9,21 @@ package xyz.kyngs.librelogin.api.crypto;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * This record is used to store a hashed password.
+ * Immutable record representing a hashed password credential, optional salt, and algorithm
+ * identifier.
  *
- * @param hash The hash of the password.
- * @param salt The salt of the password.
- * @param algo The algorithm used to hash the password.
- * @author kyngs
+ * @param hash the hash digest string
+ * @param salt the optional salt value, or null if self-contained within the hash
+ * @param algo the identifier of the algorithm used to create the hash
  */
 public record HashedPassword(String hash, @Nullable String salt, String algo) {
+
     @Override
     public String toString() {
         return "HashedPassword{"
-                + "hash='"
-                + hash
-                + '\''
-                + ", salt='"
-                + salt
-                + '\''
+                + "hash='[PROTECTED]'"
+                + ", salt="
+                + (salt != null ? "'[PROTECTED]'" : "null")
                 + ", algo='"
                 + algo
                 + '\''

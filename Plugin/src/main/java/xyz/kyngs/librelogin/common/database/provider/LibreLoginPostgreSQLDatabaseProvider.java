@@ -13,7 +13,15 @@ import java.util.List;
 import xyz.kyngs.librelogin.api.database.connector.PostgreSQLDatabaseConnector;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 
+/** PostgreSQL-specific implementation of {@link LibreLoginSQLDatabaseProvider}. */
 public class LibreLoginPostgreSQLDatabaseProvider extends LibreLoginSQLDatabaseProvider {
+
+    /**
+     * Constructs a new PostgreSQL database provider.
+     *
+     * @param connector the PostgreSQL database connector
+     * @param plugin the plugin instance
+     */
     public LibreLoginPostgreSQLDatabaseProvider(
             PostgreSQLDatabaseConnector connector, AuthenticLibreLogin<?, ?> plugin) {
         super(connector, plugin);
@@ -21,18 +29,16 @@ public class LibreLoginPostgreSQLDatabaseProvider extends LibreLoginSQLDatabaseP
 
     @Override
     protected List<String> getColumnNames(Connection connection) throws SQLException {
-        var resultSet =
-                connection
-                        .prepareStatement(
-                                "SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE"
-                                    + " TABLE_NAME='librepremium_data' and TABLE_SCHEMA='public'")
-                        .executeQuery();
-
         var columns = new ArrayList<String>();
-        while (resultSet.next()) {
-            columns.add(resultSet.getString("column_name"));
+        try (var ps =
+                        connection.prepareStatement(
+                                "SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE"
+                                    + " TABLE_NAME='librepremium_data' AND TABLE_SCHEMA='public'");
+                var resultSet = ps.executeQuery()) {
+            while (resultSet.next()) {
+                columns.add(resultSet.getString("column_name"));
+            }
         }
-
         return columns;
     }
 
@@ -44,5 +50,11 @@ public class LibreLoginPostgreSQLDatabaseProvider extends LibreLoginSQLDatabaseP
     @Override
     protected String addUnique(String column) {
         return "CREATE UNIQUE INDEX %s_index ON librepremium_data(%s)".formatted(column, column);
+    }
+
+    @Override
+    protected String addIndex(String indexName, String column) {
+        return "CREATE INDEX IF NOT EXISTS %s ON librepremium_data(%s)"
+                .formatted(indexName, column);
     }
 }

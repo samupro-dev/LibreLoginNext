@@ -11,11 +11,24 @@ import xyz.kyngs.librelogin.api.LibreLoginPlugin;
 import xyz.kyngs.librelogin.api.database.User;
 import xyz.kyngs.librelogin.api.event.ServerChooseEvent;
 
+/**
+ * Base implementation for server selection events when routing players.
+ *
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
+ */
 public class AuthenticServerChooseEvent<P, S> extends AuthenticPlayerBasedEvent<P, S>
         implements ServerChooseEvent<P, S> {
 
-    private S server = null;
+    private S server;
 
+    /**
+     * Constructs a new server choose event.
+     *
+     * @param user the database user, if loaded
+     * @param player the platform player instance
+     * @param plugin the LibreLogin plugin instance
+     */
     public AuthenticServerChooseEvent(
             @Nullable User user, P player, LibreLoginPlugin<P, S> plugin) {
         super(user, player, plugin);

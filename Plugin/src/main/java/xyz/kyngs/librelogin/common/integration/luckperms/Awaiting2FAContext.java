@@ -10,27 +10,38 @@ import net.luckperms.api.context.ContextCalculator;
 import net.luckperms.api.context.ContextConsumer;
 import net.luckperms.api.context.ContextSet;
 import net.luckperms.api.context.ImmutableContextSet;
-import org.checkerframework.checker.nullness.qual.NonNull;
+import org.jetbrains.annotations.NotNull;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 
+/**
+ * LuckPerms {@link ContextCalculator} providing the {@code librelogin-awaiting2fa} context, which
+ * indicates whether a player is currently awaiting two-factor verification.
+ *
+ * @param <P> the platform-specific player type
+ */
 public class Awaiting2FAContext<P> implements ContextCalculator<P> {
+
+    private static final String KEY = "librelogin-awaiting2fa";
 
     private final AuthenticLibreLogin<P, ?> plugin;
 
+    /**
+     * Constructs a new awaiting-2FA context calculator.
+     *
+     * @param plugin the LibreLogin plugin instance
+     */
     public Awaiting2FAContext(AuthenticLibreLogin<P, ?> plugin) {
         this.plugin = plugin;
     }
 
-    private static final String KEY = "librelogin-awaiting2fa";
-
     @Override
-    public void calculate(@NonNull P player, @NonNull ContextConsumer consumer) {
+    public void calculate(@NotNull P player, @NotNull ContextConsumer consumer) {
         consumer.accept(
                 KEY, Boolean.toString(plugin.getAuthorizationProvider().isAwaiting2FA(player)));
     }
 
     @Override
-    public @NonNull ContextSet estimatePotentialContexts() {
+    public @NotNull ContextSet estimatePotentialContexts() {
         return ImmutableContextSet.builder().add(KEY, "true").add(KEY, "false").build();
     }
 }

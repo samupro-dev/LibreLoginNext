@@ -7,22 +7,16 @@
 package xyz.kyngs.librelogin.paper;
 
 import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.DEBUG;
-import static xyz.kyngs.librelogin.paper.protocol.ProtocolUtil.getServerVersion;
 
 import co.aikar.commands.BukkitCommandIssuer;
 import co.aikar.commands.CommandIssuer;
 import co.aikar.commands.CommandManager;
 import co.aikar.commands.PaperCommandManager;
 import com.github.retrooper.packetevents.PacketEvents;
-import com.github.retrooper.packetevents.manager.server.ServerVersion;
-import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
+import com.github.retrooper.packetevents.event.PacketListenerCommon;
 import java.io.File;
 import java.io.InputStream;
 import java.util.UUID;
-import net.kyori.adventure.audience.Audience;
-import org.bstats.bukkit.Metrics;
-import org.bstats.charts.CustomChart;
-import org.bstats.charts.SimplePie;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -30,32 +24,43 @@ import xyz.kyngs.librelogin.api.Logger;
 import xyz.kyngs.librelogin.api.database.User;
 import xyz.kyngs.librelogin.api.event.exception.EventCancelledException;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
+import xyz.kyngs.librelogin.common.JULLogger;
 import xyz.kyngs.librelogin.common.SLF4JLogger;
+import xyz.kyngs.librelogin.common.ShutdownException;
 import xyz.kyngs.librelogin.common.image.AuthenticImageProjector;
 import xyz.kyngs.librelogin.common.util.CancellableTask;
+import xyz.kyngs.librelogin.lib.adventure.audience.Audience;
 import xyz.kyngs.librelogin.paper.protocol.PacketListener;
 
+/**
+ * Paper platform implementation of {@link AuthenticLibreLogin}.
+ *
+ * <p>Coordinates the PacketEvents login listener (PacketEvents itself is a required external plugin
+ * that owns its own lifecycle), Bukkit/Paper event listeners, player authorization lifecycle, and
+ * scheduler integrations.
+ */
 public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
 
     private final PaperBootstrap bootstrap;
     private PaperListeners listeners;
-    private boolean started;
+    private PacketListenerCommon packetListener;
+    private volatile boolean started;
 
+    /**
+     * Constructs a new {@link PaperLibreLogin} instance.
+     *
+     * @param bootstrap the plugin bootstrap holder
+     */
     public PaperLibreLogin(PaperBootstrap bootstrap) {
         this.bootstrap = bootstrap;
         this.started = false;
-
-        PacketEvents.setAPI(SpigotPacketEventsBuilder.build(bootstrap));
-
-        PacketEvents.getAPI()
-                .getSettings()
-                //                .debug(true)
-                .checkForUpdates(false)
-                .bStats(false);
-
-        PacketEvents.getAPI().load();
     }
 
+    /**
+     * Retrieves the bootstrap plugin instance.
+     *
+     * @return the {@link PaperBootstrap} instance
+     */
     public PaperBootstrap getBootstrap() {
         return bootstrap;
     }
@@ -72,7 +77,7 @@ public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
 
     @Override
     public String getVersion() {
-        return bootstrap.getDescription().getVersion();
+        return PaperUtil.getPluginVersion(bootstrap);
     }
 
     @Override
@@ -97,16 +102,24 @@ public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
 
     @Override
     protected Logger provideLogger() {
-        return new SLF4JLogger(bootstrap.getSLF4JLogger(), () -> getConfiguration().get(DEBUG));
+        try {
+            return new SLF4JLogger(bootstrap.getSLF4JLogger(), () -> getConfiguration().get(DEBUG));
+        } catch (LinkageError e) {
+            // Plugin#getSLF4JLogger was added in Paper 1.17.
+            return new JULLogger(bootstrap.getLogger(), () -> getConfiguration().get(DEBUG));
+        }
     }
 
     @Override
     public CommandManager<?, ?, ?, ?, ?, ?> provideManager() {
+        // ACF's Brigadier support is not enabled: on Paper up to 1.20.x it turns String
+        // parameters into Brigadier "word" arguments, which reject characters such as "!", "#"
+        // or "@" and make /register and /login fail with "Unknown command".
         return new PaperCommandManager(bootstrap);
     }
 
     @Override
-    protected boolean mainThread() {
+    public boolean mainThread() {
         return Bukkit.isPrimaryThread() && started;
     }
 
@@ -119,43 +132,61 @@ public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
 
     @Override
     protected void disable() {
-        PacketEvents.getAPI().terminate();
-        if (getDatabaseProvider() == null) return; // Not initialized
+        try {
+            // Players are removed only after plugins are disabled: save their data while the
+            // database is still open.
+            saveLastServersNow(Bukkit.getOnlinePlayers());
+        } catch (Throwable t) {
+            getLogger().error("Failed to save player data on shutdown", t);
+        }
+        try {
+            org.bukkit.event.HandlerList.unregisterAll(bootstrap);
+        } catch (Throwable ignored) {
+        }
+        try {
+            Bukkit.getScheduler().cancelTasks(bootstrap);
+        } catch (Throwable ignored) {
+        }
+        // PacketEvents belongs to its own plugin: only remove our listener, never terminate it.
+        var registered = packetListener;
+        packetListener = null;
+        if (registered != null) {
+            try {
+                PacketEvents.getAPI().getEventManager().unregisterListener(registered);
+            } catch (Throwable ignored) {
+            }
+        }
+        started = false;
 
         super.disable();
     }
 
     @Override
     protected void enable() {
-
         logger = provideLogger();
 
         if (Bukkit.getOnlineMode()) {
             getLogger()
                     .error(
-                            "!!!The server is running in online mode! LibreLogin won't start unless"
-                                    + " you set it to false!!!");
-            disable();
+                            "The backend server is running with 'online-mode=true'. LibreLogin Next"
+                                    + " manages authentication dynamically and requires"
+                                    + " 'online-mode=false' in server.properties.");
+            bootstrap.disable();
             return;
         }
 
-        boolean isBehindProxy;
-        if (getServerVersion().isNewerThanOrEquals(ServerVersion.V_1_21_4))
-            isBehindProxy = Bukkit.getServer().getServerConfig().isProxyEnabled();
-        else
-            isBehindProxy =
-                    Bukkit.spigot().getSpigotConfig().getBoolean("settings.bungeecord")
-                            || Bukkit.spigot()
-                                    .getPaperConfig()
-                                    .getBoolean("settings.velocity-support.enabled");
+        boolean isBehindProxy = PaperUtil.isProxyEnabled();
 
         if (isBehindProxy) {
-            getLogger().error("!!!This server is running under a proxy, LibreLogin won't start!!!");
             getLogger()
                     .error(
-                            "If you want to use LibreLogin under a proxy, place it on the proxy and"
-                                    + " remove it from the server.");
-            disable();
+                            "This backend server is operating behind a proxy network"
+                                    + " (BungeeCord/Velocity forwarding enabled).");
+            getLogger()
+                    .error(
+                            "LibreLogin Next must be installed directly on your proxy (Velocity)"
+                                    + " instead of backend game servers.");
+            bootstrap.disable();
             return;
         }
 
@@ -171,15 +202,31 @@ public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
                 provider.getTypes().authenticated,
                 event -> {
                     var player = event.getPlayer();
-                    if (player == null) return;
-                    player.setInvisible(false);
+                    if (player == null) {
+                        return;
+                    }
+                    if (Bukkit.isPrimaryThread()) {
+                        PaperUtil.setInvisible(player, false);
+                    } else {
+                        Bukkit.getScheduler()
+                                .runTask(bootstrap, () -> PaperUtil.setInvisible(player, false));
+                    }
                 });
 
         listeners = new PaperListeners(this);
 
-        Bukkit.getPluginManager().registerEvents(listeners, bootstrap);
+        listeners.registerListeners();
         Bukkit.getPluginManager().registerEvents(new Blockers(this), bootstrap);
-        PacketEvents.getAPI().getEventManager().registerListener(new PacketListener(listeners));
+        try {
+            Class.forName("io.papermc.paper.event.player.AsyncChatEvent");
+            Bukkit.getPluginManager().registerEvents(new ModernPaperChatBlocker(this), bootstrap);
+        } catch (ClassNotFoundException e) {
+            Bukkit.getPluginManager().registerEvents(new LegacyPaperChatBlocker(this), bootstrap);
+        }
+        packetListener =
+                PacketEvents.getAPI()
+                        .getEventManager()
+                        .registerListener(new PacketListener(listeners));
 
         started = true;
     }
@@ -187,14 +234,13 @@ public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
     @Override
     public void authorize(Player player, User user, Audience audience) {
         try {
-
             var location = listeners.getSpawnLocationCache().getIfPresent(player.getUniqueId());
 
             if (location == null) {
                 var world = getServerHandler().chooseLobbyServer(user, player, true, false);
 
                 if (world == null) {
-                    getPlatformHandle().kick(player, getMessages().getMessage("kick-no-lobby"));
+                    getPlatformHandle().kick(player, getMessages().getMessage("kick.no-lobby"));
                     return;
                 }
 
@@ -204,7 +250,30 @@ public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
             }
 
             var finalLocation = location;
-            PaperUtil.runSyncAndWait(() -> player.teleportAsync(finalLocation), this);
+            try {
+                var getSchedulerMethod = player.getClass().getMethod("getScheduler");
+                var entityScheduler = getSchedulerMethod.invoke(player);
+                var runMethod =
+                        entityScheduler
+                                .getClass()
+                                .getMethod(
+                                        "run",
+                                        org.bukkit.plugin.Plugin.class,
+                                        java.util.function.Consumer.class,
+                                        Runnable.class);
+                runMethod.invoke(
+                        entityScheduler,
+                        bootstrap,
+                        (java.util.function.Consumer<?>) o -> player.teleportAsync(finalLocation),
+                        null);
+            } catch (Throwable ignored) {
+                if (Bukkit.isPrimaryThread()) {
+                    player.teleportAsync(finalLocation);
+                } else {
+                    Bukkit.getScheduler()
+                            .runTask(bootstrap, () -> player.teleportAsync(finalLocation));
+                }
+            }
 
         } catch (EventCancelledException ignored) {
         }
@@ -238,20 +307,7 @@ public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
     }
 
     @Override
-    protected void initMetrics(CustomChart... charts) {
-        var metrics = new Metrics(bootstrap, Constants.BSTATS_ID);
-
-        for (var chart : charts) {
-            metrics.addCustomChart(chart);
-        }
-
-        var isVelocity = new SimplePie("is_velocity", () -> "Paper");
-
-        metrics.addCustomChart(isVelocity);
-    }
-
-    @Override
-    protected void shutdownProxy(int code) {
+    public void shutdownProxy(int code) {
         bootstrap.disable();
         bootstrap.getServer().shutdown();
         throw new ShutdownException();
@@ -259,6 +315,6 @@ public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
 
     @Override
     public Audience getAudienceFromIssuer(CommandIssuer issuer) {
-        return ((BukkitCommandIssuer) issuer).getIssuer();
+        return new PaperAudience(((BukkitCommandIssuer) issuer).getIssuer());
     }
 }

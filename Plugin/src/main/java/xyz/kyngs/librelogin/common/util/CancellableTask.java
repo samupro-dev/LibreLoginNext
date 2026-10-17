@@ -6,7 +6,10 @@
 
 package xyz.kyngs.librelogin.common.util;
 
+/** Represents an asynchronous or scheduled task that can be cancelled. */
+@FunctionalInterface
 public interface CancellableTask {
 
+    /** Cancels the execution of this task. */
     void cancel();
 }

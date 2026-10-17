@@ -10,21 +10,22 @@ import xyz.kyngs.librelogin.api.LibreLoginPlugin;
 import xyz.kyngs.librelogin.api.PlatformHandle;
 
 /**
- * An abstract event for all events
+ * Base interface for all LibreLogin plugin events.
  *
- * @author kyngs
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  */
 public interface Event<P, S> {
 
     /**
-     * Gets the plugin instance
+     * Gets the main plugin instance.
      *
      * @return the plugin instance
      */
     LibreLoginPlugin<P, S> getPlugin();
 
     /**
-     * Gets the platform handle
+     * Gets the platform handle abstraction.
      *
      * @return the platform handle
      */

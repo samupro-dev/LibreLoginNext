@@ -7,12 +7,23 @@
 package xyz.kyngs.librelogin.common.config;
 
 /**
- * This enum is used to manage new UUIDs.
- *
- * @author kyngs
+ * Strategy used when generating and assigning permanent unique identifiers (UUIDs) for newly
+ * registered players.
  */
 public enum NewUUIDCreator {
+
+    /** Generates a completely random Type 4 UUID. */
     RANDOM,
+
+    /**
+     * Resolves the official online Mojang UUID if the account exists; otherwise falls back to
+     * offline mode UUID.
+     */
     MOJANG,
+
+    /**
+     * Generates an offline mode Type 3 UUID derived from the player's username (standard offline
+     * UUID).
+     */
     CRACKED
 }

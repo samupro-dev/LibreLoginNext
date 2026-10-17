@@ -8,14 +8,18 @@ package xyz.kyngs.librelogin.common.config.migrate;
 
 import xyz.kyngs.librelogin.api.Logger;
 import xyz.kyngs.librelogin.common.config.ConfigurateHelper;
-import xyz.kyngs.librelogin.common.config.key.ConfigurationKey;
 
+/**
+ * Strategy interface for migrating outdated configuration options and nodes across revision
+ * upgrades.
+ */
 public interface ConfigurationMigrator {
 
+    /**
+     * Executes migration logic on the target configuration node.
+     *
+     * @param helper the configuration helper
+     * @param logger the plugin logger
+     */
     void migrate(ConfigurateHelper helper, Logger logger);
-
-    default void rename(String from, ConfigurationKey<?> to, ConfigurateHelper helper) {
-        helper.set(to.key(), to.getter().apply(helper, from));
-        helper.set(from, null);
-    }
 }

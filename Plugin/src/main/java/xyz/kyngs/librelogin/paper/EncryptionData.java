@@ -9,4 +9,12 @@ package xyz.kyngs.librelogin.paper;
 import java.util.UUID;
 import xyz.kyngs.librelogin.paper.protocol.ClientPublicKey;
 
+/**
+ * Ephemeral data container holding encryption state during the player authentication handshake.
+ *
+ * @param username the username provided during the login start phase
+ * @param token the verification token generated for the encryption exchange
+ * @param publicKey the client's public encryption key profile, if present
+ * @param uuid the unique identifier associated with the user account
+ */
 public record EncryptionData(String username, byte[] token, ClientPublicKey publicKey, UUID uuid) {}

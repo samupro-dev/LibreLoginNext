@@ -10,161 +10,160 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.text.Component;
 import xyz.kyngs.librelogin.api.server.ServerPing;
+import xyz.kyngs.librelogin.lib.adventure.audience.Audience;
+import xyz.kyngs.librelogin.lib.adventure.text.Component;
 
 /**
- * Platform-specific things that are used to interact with platform's objects
+ * Platform abstraction layer for interacting with underlying server and proxy implementations.
  *
- * @param <P> Player Type
- * @param <S> Server Type
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  */
 public interface PlatformHandle<P, S> {
 
     /**
-     * Retrieves the audience associated with the given player.
+     * Retrieves the Adventure {@link Audience} associated with the given player.
      *
-     * @param player the player for which to retrieve the audience
-     * @return the audience associated with the given player
+     * @param player the player instance
+     * @return the audience representing the player
      */
     Audience getAudienceForPlayer(P player);
 
     /**
-     * Retrieves the UUID associated with the given player.
+     * Retrieves the unique identifier (UUID) for the given player.
      *
-     * @param player the player for which to retrieve the UUID
-     * @return the UUID associated with the given player
+     * @param player the player instance
+     * @return the UUID of the player
      */
     UUID getUUIDForPlayer(P player);
 
     /**
-     * Moves the player to the specified location asynchronously and returns a CompletableFuture
-     * that will be completed with an exception if an error occurs during the move.
+     * Connects or transfers the player to the specified server asynchronously.
      *
-     * @param player the player to be moved
-     * @param to the location to which the player should be moved
-     * @return a CompletableFuture that will be completed with an exception if an error occurs
-     *     during the move
+     * @param player the player to transfer
+     * @param to the destination server
+     * @return a {@link CompletableFuture} completing with null on success, or a {@link Throwable}
+     *     on failure
      */
     CompletableFuture<Throwable> movePlayer(P player, S to);
 
     /**
-     * Kicks the player from the server with the specified reason.
+     * Disconnects/kicks the player from the network with the specified reason.
      *
-     * @param player the player to be kicked
-     * @param reason the reason for kicking the player
+     * @param player the player to disconnect
+     * @param reason the kick reason component
      */
     void kick(P player, Component reason);
 
     /**
-     * Retrieves the server with the specified name.
+     * Retrieves a server handle by its configured name.
      *
-     * @param name the name of the server to retrieve
-     * @param limbo a boolean indicating whether to retrieve servers in limbo status or not
-     * @return the server with the specified name, or null if no server is found
+     * @param name the server identifier
+     * @param limbo whether to include servers running in limbo mode
+     * @return the server instance, or null if not found
      */
     S getServer(String name, boolean limbo);
 
     /**
-     * Retrieves the class of the {@link S} type
+     * Retrieves the runtime {@link Class} representing the server type {@link S}.
      *
-     * @return the class of the {@link S} type
+     * @return the server class
      */
     Class<S> getServerClass();
 
     /**
-     * Retrieves the class of the {@link P} type
+     * Retrieves the runtime {@link Class} representing the player type {@link P}.
      *
-     * @return the class of the {@link P} type
+     * @return the player class
      */
     Class<P> getPlayerClass();
 
     /**
-     * Retrieves the IP address of the specified player.
+     * Retrieves the remote IP address of the specified player.
      *
-     * @param player the player object for which to retrieve the IP address
-     * @return the IP address of the player as a string
+     * @param player the player instance
+     * @return the IP address string
      */
     String getIP(P player);
 
     /**
-     * Pings the specified server to retrieve server information.
+     * Pings the specified server to retrieve status information.
      *
-     * @param server the server object to be pinged
-     * @return the ServerPing object containing server information
+     * @param server the server instance to ping
+     * @return the {@link ServerPing} containing server status
      */
     ServerPing ping(S server);
 
     /**
-     * Retrieves the collection of all servers.
+     * Retrieves all registered backend servers known to the platform.
      *
-     * @return the collection of all servers
+     * @return the collection of servers
      */
     Collection<S> getServers();
 
     /**
-     * Retrieves the name of the given server.
+     * Retrieves the registered name for the given server instance.
      *
-     * @param server the server for which to retrieve the name
-     * @return the name of the given server
+     * @param server the server instance
+     * @return the name of the server
      */
     String getServerName(S server);
 
     /**
-     * Retrieves the number of connected players on the given server.
+     * Retrieves the current number of connected players on the given server.
      *
-     * @param server the server for which to retrieve the number of connected players
-     * @return the number of connected players on the given server
+     * @param server the server instance
+     * @return the connected player count
      */
     int getConnectedPlayers(S server);
 
     /**
-     * Retrieves the server name for the given player.
+     * Retrieves the current server name the player is connected to.
      *
-     * @param player the player for which to retrieve the server name
-     * @return the server name associated with the given player
+     * @param player the player instance
+     * @return the connected server name, or null if not currently connected to a server
      */
     String getPlayersServerName(P player);
 
     /**
-     * Retrieves the virtual host for the given player.
+     * Retrieves the virtual host (hostname/domain) used by the player to connect.
      *
-     * @param player the player for which to retrieve the virtual host
-     * @return the virtual host associated with the given player
+     * @param player the player instance
+     * @return the virtual host string, or null if unknown
      */
     String getPlayersVirtualHost(P player);
 
     /**
-     * Retrieves the username for the given player.
+     * Retrieves the current username of the given player.
      *
-     * @param player the player for which to retrieve the username
-     * @return the username associated with the given player
+     * @param player the player instance
+     * @return the username
      */
     String getUsernameForPlayer(P player);
 
     /**
-     * Retrieves the platform identifier.
+     * Retrieves the platform implementation identifier (e.g. "velocity", "paper").
      *
      * @return the platform identifier
      */
     String getPlatformIdentifier();
 
     /**
-     * Retrieves the proxy data.
+     * Retrieves general metadata and configured server topology for the local proxy.
      *
-     * @return the proxy data
+     * @return the proxy data record
      */
     ProxyData getProxyData();
 
     /**
-     * Represents the data for a proxy server.
+     * Encapsulates topology and plugin data of the local proxy instance.
      *
-     * @param name the name of the proxy server
-     * @param servers the list of servers on the proxy
-     * @param plugins the list of plugins on the proxy
-     * @param limbos the list of servers in limbo status on the proxy
-     * @param lobbies the list of servers in lobby status on the proxy
+     * @param name the proxy instance identifier
+     * @param servers list of registered server names
+     * @param plugins list of loaded plugin names
+     * @param limbos list of registered limbo server names
+     * @param lobbies list of registered lobby server names
      */
     record ProxyData(
             String name,

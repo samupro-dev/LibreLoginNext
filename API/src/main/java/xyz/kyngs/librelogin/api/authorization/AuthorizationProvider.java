@@ -10,46 +10,45 @@ import xyz.kyngs.librelogin.api.database.User;
 import xyz.kyngs.librelogin.api.event.events.AuthenticatedEvent;
 
 /**
- * This interface manages user authorization.
+ * Manages player authentication states, authorization lifecycle, and two-factor verification.
  *
- * @param <P> The type of the player.
- * @author kyngs
+ * @param <P> the platform-specific player type
  */
 public interface AuthorizationProvider<P> {
 
     /**
-     * Checks whether the user has already passed the login process.
+     * Checks whether the player is currently authenticated and authorized.
      *
-     * @param player The player.
-     * @return True if the user has already passed the login process, false otherwise.
+     * @param player the player to check
+     * @return true if the player has successfully completed authentication, false otherwise
      */
     boolean isAuthorized(P player);
 
     /**
-     * Checks whether the player is in the process of enabling 2FA.
+     * Checks whether the player is currently in the process of confirming two-factor
+     * authentication.
      *
-     * @param player The player.
-     * @return True if the player is in the process of enabling 2FA, false otherwise.
+     * @param player the player to check
+     * @return true if awaiting 2FA confirmation, false otherwise
      */
     boolean isAwaiting2FA(P player);
 
     /**
-     * Authorizes the player, if the player is not already authorized. Implementation must make sure
-     * that {@link #isAuthorized(P)} returns false.
+     * Authorizes the player and marks them as authenticated.
      *
-     * @param user The user.
-     * @param player The player.
-     * @param reason The reason for authorization.
+     * @param user the user database profile
+     * @param player the platform player instance
+     * @param reason the authentication reason triggering this authorization
      */
     void authorize(User user, P player, AuthenticatedEvent.AuthenticationReason reason);
 
     /**
-     * Finishes the 2FA enabling process.
+     * Completes and confirms two-factor authentication setup for a player.
      *
-     * @param player The player.
-     * @param code The code.
-     * @param user The user.
-     * @return whether the code is valid.
+     * @param player the player confirming 2FA
+     * @param code the verification code supplied by the player
+     * @param user the user profile
+     * @return true if the verification code is valid and 2FA was confirmed, false otherwise
      */
     boolean confirmTwoFactorAuth(P player, Integer code, User user);
 }

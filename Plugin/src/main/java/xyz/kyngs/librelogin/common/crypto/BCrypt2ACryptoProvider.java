@@ -6,40 +6,67 @@
 
 package xyz.kyngs.librelogin.common.crypto;
 
-import at.favre.lib.crypto.bcrypt.BCrypt;
-import javax.annotation.Nullable;
+import com.password4j.BcryptFunction;
+import com.password4j.Hash;
+import com.password4j.Password;
+import com.password4j.types.Bcrypt;
+import java.nio.charset.StandardCharsets;
+import org.jetbrains.annotations.Nullable;
 import xyz.kyngs.librelogin.api.crypto.CryptoProvider;
 import xyz.kyngs.librelogin.api.crypto.HashedPassword;
-import xyz.kyngs.librelogin.common.util.CryptoUtil;
 
+/**
+ * Implementation of {@link CryptoProvider} utilizing the BCrypt password hashing scheme via
+ * Password4j.
+ *
+ * <p>This provider uses a work cost factor of 10 (1024 key expansion iterations). The underlying
+ * verification routine performs constant-time byte comparison to eliminate timing-attack
+ * vulnerabilities.
+ *
+ * <p>Standard Modular Crypt Format (MCF) hashes ($2a, $2b, $2y) are produced and verified directly.
+ */
 public class BCrypt2ACryptoProvider implements CryptoProvider {
 
-    public static final BCrypt.Hasher HASHER = BCrypt.with(BCrypt.Version.VERSION_2A);
-    public static final BCrypt.Verifyer VERIFIER = BCrypt.verifyer(BCrypt.Version.VERSION_2A);
+    private static final int DEFAULT_LOG_ROUNDS = 10;
+
+    /** BCrypt ignores everything after 72 bytes; longer passwords would collide silently. */
+    private static final int MAX_PASSWORD_BYTES = 72;
+
+    private final BcryptFunction defaultFunction;
+
+    /** Constructs a new {@code BCrypt2ACryptoProvider} with standard cost 10 and $2a prefix. */
+    public BCrypt2ACryptoProvider() {
+        this.defaultFunction = BcryptFunction.getInstance(Bcrypt.A, DEFAULT_LOG_ROUNDS);
+    }
 
     @Override
     @Nullable
     public HashedPassword createHash(String password) {
-        String hash;
-        try {
-            hash = HASHER.hashToString(10, password.toCharArray());
-        } catch (IllegalArgumentException e) {
+        if (password == null
+                || password.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
+            // null makes the caller report error.password-too-long
             return null;
         }
-        return CryptoUtil.convertFromBCryptRaw(hash);
+        try {
+            Hash hash = Password.hash(password).with(defaultFunction);
+            return new HashedPassword(hash.getResult(), null, getIdentifier());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     @Override
     public boolean matches(String input, HashedPassword password) {
-        var raw = CryptoUtil.rawBcryptFromHashed(password).toCharArray();
-        BCrypt.Result result;
-        try {
-            result = VERIFIER.verify(input.toCharArray(), raw);
-        } catch (IllegalArgumentException e) {
+        if (input == null || password == null || password.hash() == null) {
             return false;
         }
-
-        return result.verified;
+        try {
+            String hash = password.hash();
+            BcryptFunction verifier = BcryptFunction.getInstanceFromHash(hash);
+            return Password.check(input, hash).with(verifier);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override

@@ -13,6 +13,10 @@ import dev.simplix.protocolize.api.providers.MappingProvider;
 import dev.simplix.protocolize.api.providers.ProtocolRegistrationProvider;
 import xyz.kyngs.librelogin.common.image.protocolize.packet.MapDataPacket;
 
+/**
+ * Protocolize module responsible for registering custom map data packets into Protocolize's packet
+ * pipeline.
+ */
 public class ProtocolizeImageModule implements ProtocolizeModule {
 
     @Override

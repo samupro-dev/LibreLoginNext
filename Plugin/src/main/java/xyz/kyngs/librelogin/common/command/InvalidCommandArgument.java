@@ -6,17 +6,32 @@
 
 package xyz.kyngs.librelogin.common.command;
 
-import net.kyori.adventure.text.TextComponent;
+import xyz.kyngs.librelogin.lib.adventure.text.TextComponent;
 
+/**
+ * Exception thrown when a user enters invalid arguments or fails validation during command
+ * execution. The wrapped {@link TextComponent} contains the formatted error message intended for
+ * display to the issuer.
+ */
 public class InvalidCommandArgument extends RuntimeException {
 
-    private final TextComponent userFuckUp;
+    private final TextComponent errorMessage;
 
-    public InvalidCommandArgument(TextComponent userFuckUp) {
-        this.userFuckUp = userFuckUp;
+    /**
+     * Constructs a new command argument exception with the specified user-facing message.
+     *
+     * @param errorMessage the component message to display to the user
+     */
+    public InvalidCommandArgument(TextComponent errorMessage) {
+        this.errorMessage = errorMessage;
     }
 
-    public TextComponent getUserFuckUp() {
-        return userFuckUp;
+    /**
+     * Retrieves the formatted error component to send to the command issuer.
+     *
+     * @return the error message component
+     */
+    public TextComponent getErrorMessage() {
+        return errorMessage;
     }
 }

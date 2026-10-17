@@ -2,157 +2,185 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
     id("java")
-    id("io.github.goooler.shadow") version "8.1.8"
-    id("net.kyori.blossom").version("1.3.1")
-    id("java-library")
-    id("xyz.kyngs.libby.plugin").version("1.2.1")
+    id("com.gradleup.shadow")
 }
 
-tasks.withType<JavaCompile> {
-    options.encoding = "UTF-8"
+/*
+ * Dependency variant selection.
+ *
+ * Every library bundled into the final jar must run on Java 17, so the runtime classpaths request
+ * Java 17 variants and Gradle rejects any dependency that requires a newer runtime. The remaining
+ * classpaths request Java 25 because the compile-only platform APIs (Paper, Velocity) are published
+ * for newer Java versions and only have to be readable by the compiler.
+ */
+configurations.matching { it.isCanBeResolved }.configureEach {
+    attributes {
+        attribute(
+            TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE,
+            if (name == "runtimeClasspath" || name == "testRuntimeClasspath") 17 else 25
+        )
+    }
 }
 
-repositories {
-    // mavenLocal()
-    maven { url = uri("https://repo.opencollab.dev/maven-snapshots/") }
-    maven { url = uri("https://repo.papermc.io/repository/maven-public/") }
-    maven { url = uri("https://hub.spigotmc.org/nexus/") }
-    maven { url = uri("https://repo.kyngs.xyz/public/") }
-    maven { url = uri("https://mvn.exceptionflug.de/repository/exceptionflug-public/") }
-    maven { url = uri("https://repo.dmulloy2.net/repository/public/") }
-    maven { url = uri("https://repo.alessiodp.com/releases/") }
-    maven { url = uri("https://jitpack.io/") }
-    maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }
-    maven { url = uri("https://repo.codemc.io/repository/maven-releases/") }
+/*
+ * Velocity reads the plugin version from the @Plugin annotation of VelocityBootstrap. The source
+ * file contains an @version@ placeholder; this task writes a copy with the project version that is
+ * compiled instead of the original.
+ */
+val generateVelocityBootstrap = tasks.register<Copy>("generateVelocityBootstrap") {
+    // Resolved during configuration so the filter does not reference the project at execution time.
+    val pluginVersion = project.version.toString()
+    inputs.property("version", pluginVersion)
+
+    from("src/main/java") {
+        include("xyz/kyngs/librelogin/velocity/VelocityBootstrap.java")
+    }
+    into(layout.buildDirectory.dir("generated/sources/versioned/java"))
+    filter { line -> line.replace("@version@", pluginVersion) }
 }
 
-blossom {
-    replaceToken("@version@", version)
+sourceSets {
+    main {
+        java {
+            srcDir(generateVelocityBootstrap)
+        }
+    }
 }
 
-tasks.withType<ShadowJar> {
-    destinationDirectory.set(file("../target"))
+tasks.compileJava {
+    // Exclude the original VelocityBootstrap source; the generated copy is compiled instead.
+    val mainJavaDir = project.file("src/main/java").absolutePath.replace('\\', '/')
+    exclude { element ->
+        element.file.absolutePath.replace('\\', '/').startsWith(mainJavaDir) &&
+            element.relativePath.toString() == "xyz/kyngs/librelogin/velocity/VelocityBootstrap.java"
+    }
+}
 
-    archiveBaseName.set("LibreLoginProd")
-    archiveClassifier = null
+tasks.withType<ShadowJar>().configureEach {
+    destinationDirectory = rootProject.layout.projectDirectory.dir("target")
+    archiveBaseName = "LibreLoginNext"
+    archiveClassifier = ""
 
+    // Provided at runtime by Paper and Velocity.
     dependencies {
         exclude(dependency("org.slf4j:.*:.*"))
         exclude(dependency("org.checkerframework:.*:.*"))
         exclude(dependency("com.google.errorprone:.*:.*"))
         exclude(dependency("com.google.protobuf:.*:.*"))
+        exclude(dependency("com.google.guava:.*:.*"))
+        exclude(dependency("com.google.code.gson:.*:.*"))
     }
 
-    relocate("co.aikar.acf", "xyz.kyngs.librelogin.lib.acf")
+    // Bundled libraries are relocated to avoid conflicts with other plugins and the server.
+    relocate("co.aikar.commands", "xyz.kyngs.librelogin.lib.acf")
+    relocate("co.aikar.locales", "xyz.kyngs.librelogin.lib.locales")
     relocate("com.github.benmanes.caffeine", "xyz.kyngs.librelogin.lib.caffeine")
     relocate("com.typesafe.config", "xyz.kyngs.librelogin.lib.hocon")
     relocate("com.zaxxer.hikari", "xyz.kyngs.librelogin.lib.hikari")
     relocate("org.mariadb", "xyz.kyngs.librelogin.lib.mariadb")
-    relocate("org.bstats", "xyz.kyngs.librelogin.lib.metrics")
+    relocate("org.postgresql", "xyz.kyngs.librelogin.lib.postgresql")
     relocate("org.intellij", "xyz.kyngs.librelogin.lib.intellij")
     relocate("org.jetbrains", "xyz.kyngs.librelogin.lib.jetbrains")
     relocate("io.leangen.geantyref", "xyz.kyngs.librelogin.lib.reflect")
     relocate("org.spongepowered.configurate", "xyz.kyngs.librelogin.lib.configurate")
-    relocate("net.byteflux.libby", "xyz.kyngs.librelogin.lib.libby")
-    relocate("org.postgresql", "xyz.kyngs.librelogin.lib.postgresql")
-    relocate("com.github.retrooper.packetevents", "xyz.kyngs.librelogin.lib.packetevents.api")
-    relocate("io.github.retrooper.packetevents", "xyz.kyngs.librelogin.lib.packetevents.platform")
-}
+    // Configurate's copy of kyori-option; the copy used by Adventure is relocated in :Adventure.
+    relocate("net.kyori.option", "xyz.kyngs.librelogin.lib.configurate.option")
+    relocate("io.lettuce.core", "xyz.kyngs.librelogin.lib.lettuce")
+    relocate("io.lettuce.authx", "xyz.kyngs.librelogin.lib.lettuce.authx")
+    relocate("com.password4j", "xyz.kyngs.librelogin.lib.password4j")
+    relocate("com.helger.totp", "xyz.kyngs.librelogin.lib.totp")
+    relocate("org.apache.commons.codec", "xyz.kyngs.librelogin.lib.codec")
+    relocate("com.google.zxing", "xyz.kyngs.librelogin.lib.zxing")
+    relocate("org.apache.commons.mail", "xyz.kyngs.librelogin.lib.mail")
 
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+    /*
+     * Service provider files are merged and rewritten to the relocated class names. Duplicates
+     * must reach the transformer, so these files use the INCLUDE strategy while every other entry
+     * keeps the default EXCLUDE strategy.
+     */
+    mergeServiceFiles()
+    filesMatching(listOf("META-INF/services/**", "META-INF/*.kotlin_module")) {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
     }
 }
 
-tasks.withType<Jar> {
-    from("../LICENSE.txt")
+tasks.withType<Jar>().configureEach {
+    // Mozilla Public License 2.0 from the repository root, shipped with every published artifact.
+    // Stored as LICENSE.txt: bundled dependencies already contribute a LICENSE entry.
+    from(rootProject.layout.projectDirectory.file("LICENSE")) {
+        rename { "LICENSE.txt" }
+    }
 }
-
-libby {
-    excludeDependency("org.slf4j:.*:.*")
-    excludeDependency("org.checkerframework:.*:.*")
-    excludeDependency("com.google.errorprone:.*:.*")
-    excludeDependency("com.google.protobuf:.*:.*")
-
-    // Often redeploys the same version, so calculating checksum causes false flags
-    noChecksumDependency("com.github.retrooper.packetevents:.*:.*")
-}
-
-//configurations.all {
-//    // I hate this, but it needs to be done as bungeecord does not support newer versions of adventure, and packetevents includes it
-//    resolutionStrategy {
-//        force("net.kyori:adventure-text-minimessage:4.14.0")
-//        force("net.kyori:adventure-text-serializer-gson:4.14.0")
-//        force("net.kyori:adventure-text-serializer-legacy:4.14.0")
-//        force("net.kyori:adventure-text-serializer-json:4.14.0")
-//        force("net.kyori:adventure-api:4.14.0")
-//        force("net.kyori:adventure-nbt:4.14.0")
-//        force("net.kyori:adventure-key:4.14.0")
-//    }
-//}
 
 dependencies {
-    //API
+    // Public API
     implementation(project(":API"))
 
-    //Velocity
-    annotationProcessor("com.velocitypowered:velocity-api:3.4.0-SNAPSHOT")
-    compileOnly("com.velocitypowered:velocity-api:3.4.0-SNAPSHOT")
-    compileOnly("com.velocitypowered:velocity-proxy:3.2.0-SNAPSHOT-277")
-    compileOnly("com.github.ProxioDev.ValioBungee:RedisBungee-Bungee:0.13.0")
+    // Velocity (annotation processor generates velocity-plugin.json)
+    annotationProcessor("com.velocitypowered:velocity-api:4.1.0-SNAPSHOT")
+    compileOnly("com.velocitypowered:velocity-api:4.1.0-SNAPSHOT")
 
-    //MySQL
-    libby("org.mariadb.jdbc:mariadb-java-client:3.5.4")
-    libby("com.zaxxer:HikariCP:6.3.2")
+    // Redis client, relocated in :Lettuce together with its own Netty and Reactor
+    implementation(project(path = ":Lettuce", configuration = "relocated"))
 
-    //SQLite
-    libby("org.xerial:sqlite-jdbc:3.50.3.0")
+    // Databases
+    implementation("com.zaxxer:HikariCP:7.1.0")
+    implementation("org.mariadb.jdbc:mariadb-java-client:3.5.10")
+    implementation("org.postgresql:postgresql:42.7.14")
+    implementation("org.xerial:sqlite-jdbc:3.53.4.0")
 
-    //PostgreSQL
-    libby("org.postgresql:postgresql:42.7.8")
+    // Command framework
+    implementation("co.aikar:acf-velocity:0.5.1-SNAPSHOT")
+    implementation("co.aikar:acf-paper:0.5.1-SNAPSHOT")
 
-    //ACF
-    libby("com.github.kyngs.commands:acf-velocity:7d5bf7cac0")
-    libby("com.github.kyngs.commands:acf-paper:7d5bf7cac0")
+    // Utilities and cryptography
+    implementation("com.github.ben-manes.caffeine:caffeine:3.3.1")
+    implementation("org.spongepowered:configurate-hocon:4.2.0")
+    implementation("com.password4j:password4j:1.8.4")
+    implementation("com.helger:ph-totp:2.1.1")
+    implementation("commons-codec:commons-codec:1.23.0")
+    implementation("com.google.zxing:core:3.5.4")
+    implementation("com.google.zxing:javase:3.5.4") {
+        exclude(group = "org.jcommander", module = "jcommander")
+        exclude(group = "com.beust", module = "jcommander")
+        exclude(group = "com.github.jai-imageio", module = "jai-imageio-core")
+    }
+    implementation("org.apache.commons:commons-email:1.6.0")
 
-    //Utils
-    libby("com.github.ben-manes.caffeine:caffeine:3.2.2")
-    libby("org.spongepowered:configurate-hocon:4.2.0")
-    libby("at.favre.lib:bcrypt:0.10.2")
-    libby("dev.samstevens.totp:totp:1.7.1")
-    compileOnly("dev.simplix:protocolize-api:2.4.2")
-    libby("org.bouncycastle:bcprov-jdk18on:1.81")
-    libby("org.apache.commons:commons-email:1.6.0")
-    libby("net.kyori:adventure-text-minimessage:4.25.0")
-    libby("com.github.kyngs:LegacyMessage:0.2.0")
-
-    //Geyser
-    compileOnly("org.geysermc.floodgate:api:2.2.0-SNAPSHOT")
-    //LuckPerms
-    compileOnly("net.luckperms:api:5.5")
-
-    //BStats
-    libby("org.bstats:bstats-velocity:3.1.0")
-    libby("org.bstats:bstats-bukkit:3.1.0")
-
-    //Paper
+    // Platform and integration APIs, provided at runtime by the server or other plugins
+    compileOnly("com.google.guava:guava:32.1.3-jre")
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
-    implementation("com.github.retrooper:packetevents-spigot:2.13.0")
-    compileOnly("org.apache.logging.log4j:log4j-core:2.25.1")
+    compileOnly("com.github.retrooper:packetevents-spigot:2.14.0")
+    compileOnly("dev.simplix:protocolize-api:2.4.2")
+    compileOnly("org.geysermc.floodgate:api:2.2.5-SNAPSHOT")
+    compileOnly("net.luckperms:api:5.5")
+    compileOnly("org.apache.logging.log4j:log4j-core:2.26.1")
 
-    //Libby
-    implementation("xyz.kyngs.libby:libby-bukkit:1.6.0")
-    implementation("xyz.kyngs.libby:libby-velocity:1.6.0")
-    implementation("xyz.kyngs.libby:libby-paper:1.6.0")
+    // Tests
+    testImplementation(platform("org.junit:junit-bom:6.1.3"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // Reference data for the map packet ID tests
+    testImplementation("dev.simplix:protocolize-api:2.4.2")
+    testImplementation("com.github.retrooper:packetevents-spigot:2.14.0")
+    // Platform-provided libraries; Gson 2.8.0 is the oldest version shipped by a supported server
+    testRuntimeOnly("com.google.guava:guava:32.1.3-jre")
+    testRuntimeOnly("com.google.code.gson:gson:2.8.0")
 }
 
-tasks.withType<ProcessResources> {
-    outputs.upToDateWhen { false }
-    filesMatching("plugin.yml") {
-        expand(mapOf("version" to version))
-    }
-    filesMatching("paper-plugin.yml") {
-        expand(mapOf("version" to version))
+tasks.test {
+    useJUnitPlatform()
+}
+
+tasks.withType<ProcessResources>().configureEach {
+    // Resolved during configuration; declared as an input so a version change re-runs the task.
+    val pluginVersion = project.version.toString()
+    inputs.property("version", pluginVersion)
+
+    // config.conf and messages.conf are generated at runtime from the configuration keys.
+    exclude("config.conf", "messages.conf")
+
+    filesMatching(listOf("plugin.yml", "paper-plugin.yml")) {
+        expand(mapOf("version" to pluginVersion))
     }
 }

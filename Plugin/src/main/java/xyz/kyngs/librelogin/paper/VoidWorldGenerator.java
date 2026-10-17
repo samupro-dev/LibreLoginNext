@@ -7,16 +7,22 @@
 package xyz.kyngs.librelogin.paper;
 
 import java.util.Random;
+import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.generator.ChunkGenerator;
-import org.bukkit.generator.WorldInfo;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+/**
+ * Custom chunk generator creating an empty void world with a single barrier block at the spawn
+ * location.
+ */
 public class VoidWorldGenerator extends ChunkGenerator {
 
     @Override
     public void generateSurface(
-            @NotNull WorldInfo worldInfo,
+            @NotNull org.bukkit.generator.WorldInfo worldInfo,
             @NotNull Random random,
             int chunkX,
             int chunkZ,
@@ -24,6 +30,61 @@ public class VoidWorldGenerator extends ChunkGenerator {
         if (chunkX == 0 && chunkZ == 0) {
             chunkData.setBlock(0, 69, 0, Material.BARRIER);
         }
-        super.generateSurface(worldInfo, random, chunkX, chunkZ, chunkData);
+    }
+
+    @Override
+    public boolean shouldGenerateNoise() {
+        return false;
+    }
+
+    @Override
+    public boolean shouldGenerateSurface() {
+        return false;
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    public boolean shouldGenerateBedrock() {
+        return false;
+    }
+
+    @Override
+    public boolean shouldGenerateCaves() {
+        return false;
+    }
+
+    @Override
+    public boolean shouldGenerateDecorations() {
+        return false;
+    }
+
+    @Override
+    public boolean shouldGenerateMobs() {
+        return false;
+    }
+
+    @Override
+    public boolean shouldGenerateStructures() {
+        return false;
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    public ChunkData generateChunkData(
+            @NotNull World world,
+            @NotNull Random random,
+            int chunkX,
+            int chunkZ,
+            @NotNull BiomeGrid biome) {
+        ChunkData chunkData = createChunkData(world);
+        if (chunkX == 0 && chunkZ == 0) {
+            chunkData.setBlock(0, 69, 0, Material.BARRIER);
+        }
+        return chunkData;
+    }
+
+    @Override
+    public @Nullable Location getFixedSpawnLocation(@NotNull World world, @NotNull Random random) {
+        return new Location(world, 0.5, 70, 0.5);
     }
 }

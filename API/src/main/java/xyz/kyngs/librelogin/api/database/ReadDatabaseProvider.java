@@ -9,49 +9,54 @@ package xyz.kyngs.librelogin.api.database;
 import java.util.Collection;
 import java.util.UUID;
 
-/**
- * This interface is used to read from the database.
- *
- * @author kyngs
- */
+/** Read-only interface for querying user account records from a persistent store. */
 public interface ReadDatabaseProvider {
 
     /**
-     * This method finds a player by their name.
+     * Looks up a user account by their username.
      *
-     * @param name The name of the player.
-     * @return The player, or null if the player does not exist.
+     * @param name the username to search for
+     * @return the matching User instance, or null if not found
      */
     User getByName(String name);
 
     /**
-     * This method finds a player by their UUID.
+     * Looks up a user account by their unique identifier.
      *
-     * @param uuid The UUID of the player.
-     * @return The player, or null if the player does not exist.
+     * @param uuid the UUID of the user
+     * @return the matching User instance, or null if not found
      */
     User getByUUID(UUID uuid);
 
     /**
-     * This method finds a player by their premium UUID.
+     * Looks up a user account by their linked premium Mojang UUID.
      *
-     * @param uuid The premium UUID of the player.
-     * @return The player, or null if the player does not exist.
+     * @param uuid the premium UUID of the user
+     * @return the matching User instance, or null if not found
      */
     User getByPremiumUUID(UUID uuid);
 
     /**
-     * This method fetches all players. <b>Use this with caution.</b>
+     * Retrieves all user account records stored in the database.
      *
-     * @return A collection of all players.
+     * @return a collection of all users
      */
     Collection<User> getAllUsers();
 
     /**
-     * This method fetches all players which used the specified IP.
+     * Retrieves all user accounts associated with a specific IP address.
      *
-     * @param ip IP address.
-     * @return A collection of all players which used the specified IP.
+     * @param ip the IP address to search for
+     * @return a collection of matching users
      */
     Collection<User> getByIP(String ip);
+
+    /**
+     * Checks whether the underlying database connection is active and responsive.
+     *
+     * @return true if connected, false otherwise
+     */
+    default boolean connected() {
+        return true;
+    }
 }

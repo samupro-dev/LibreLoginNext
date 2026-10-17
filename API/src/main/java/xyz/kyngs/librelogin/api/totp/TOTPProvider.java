@@ -9,35 +9,34 @@ package xyz.kyngs.librelogin.api.totp;
 import xyz.kyngs.librelogin.api.database.User;
 
 /**
- * This interface handles TOTP data creation and verification.
- *
- * @author kyngs
+ * Service provider interface for generating TOTP secrets, QR code visualizations, and validating
+ * codes.
  */
 public interface TOTPProvider {
 
     /**
-     * Generates new TOTP data for a user.
+     * Generates a new random secret and corresponding QR code payload for a user.
      *
-     * @param user The user to generate TOTP data for.
-     * @return The TOTP data.
+     * @param user the user domain model
+     * @return the generated {@link TOTPData}
      */
     TOTPData generate(User user);
 
     /**
-     * Generates a new TOTP data for a user.
+     * Generates TOTP data and QR code visualization using an existing secret key.
      *
-     * @param user The user to generate TOTP data for.
-     * @param secret The secret to use for the TOTP.
-     * @return The TOTP data.
+     * @param user the user domain model
+     * @param secret the base32 secret key string
+     * @return the generated {@link TOTPData}
      */
     TOTPData generate(User user, String secret);
 
     /**
-     * Verifies a TOTP code for a user.
+     * Validates a candidate numeric verification code against a base32 TOTP secret key.
      *
-     * @param code The code to verify.
-     * @param secret The secret to use for the TOTP.
-     * @return Whether the code was correct.
+     * @param code the numeric code entered by the user
+     * @param secret the base32 secret key
+     * @return true if the code is valid within the acceptable time window, false otherwise
      */
     boolean verify(Integer code, String secret);
 }

@@ -7,39 +7,39 @@
 package xyz.kyngs.librelogin.api.configuration;
 
 import java.io.IOException;
-import net.kyori.adventure.text.TextComponent;
 import xyz.kyngs.librelogin.api.LibreLoginPlugin;
+import xyz.kyngs.librelogin.lib.adventure.text.TextComponent;
 
 /**
- * This interface manages the messages of the plugin.
- *
- * @author kyngs
+ * Message provider handling internationalization, placeholder resolution, and localized text
+ * components.
  */
 public interface Messages {
 
     /**
-     * Gets the message with the given key.
+     * Retrieves a message component by key with placeholder replacements applied.
      *
-     * @param key The message key.
-     * @param replacements Allows you to replace the placeholders in the message.
-     * @return The message, or null if the message does not exist.
+     * @param key the message key identifier
+     * @param replacements alternating placeholder key-value pairs (e.g. "%player%", "kyngs")
+     * @return the parsed text component, or null if the key is not defined
      */
     TextComponent getMessage(String key, String... replacements);
 
     /**
-     * Tells if a message should be treated as empty.
+     * Checks whether the message associated with the specified key is empty or blank.
      *
-     * @param key The message key.
-     * @return Boolean value representing message emptiness.
+     * @param key the message key identifier
+     * @return true if the message is empty or undefined, false otherwise
      */
     boolean isEmpty(String key);
 
     /**
-     * Reloads the messages.
+     * Reloads message templates and translations from configuration files.
      *
-     * @param plugin The plugin.
-     * @throws IOException If an I/O error occurs.
-     * @throws CorruptedConfigurationException If the configuration is corrupted.
+     * @param plugin the plugin instance
+     * @throws IOException if an I/O error occurs while reading the configuration file
+     * @throws CorruptedConfigurationException if the configuration file has invalid formatting or
+     *     structure
      */
     void reload(LibreLoginPlugin<?, ?> plugin) throws IOException, CorruptedConfigurationException;
 }

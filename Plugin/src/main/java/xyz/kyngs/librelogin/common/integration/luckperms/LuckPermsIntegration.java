@@ -9,11 +9,23 @@ package xyz.kyngs.librelogin.common.integration.luckperms;
 import net.luckperms.api.LuckPermsProvider;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 
+/**
+ * Manages the integration with the LuckPerms permissions framework, registering and unregistering
+ * custom context calculators for authorization state and two-factor verification state.
+ *
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
+ */
 public class LuckPermsIntegration<P, S> {
 
     private final AuthorizedContext<P> authorizedContext;
     private final Awaiting2FAContext<P> awaiting2faContext;
 
+    /**
+     * Constructs and initializes the LuckPerms integration, registering context calculators.
+     *
+     * @param plugin the LibreLogin plugin instance
+     */
     public LuckPermsIntegration(AuthenticLibreLogin<P, S> plugin) {
         authorizedContext = new AuthorizedContext<>(plugin);
         awaiting2faContext = new Awaiting2FAContext<>(plugin);
@@ -22,6 +34,7 @@ public class LuckPermsIntegration<P, S> {
         contextMgr.registerCalculator(awaiting2faContext);
     }
 
+    /** Unregisters all registered context calculators from the LuckPerms context manager. */
     public void disable() {
         var contextMgr = LuckPermsProvider.get().getContextManager();
         contextMgr.unregisterCalculator(authorizedContext);

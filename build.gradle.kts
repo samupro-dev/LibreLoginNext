@@ -1,49 +1,47 @@
-import org.cadixdev.gradle.licenser.LicenseProperties
+import com.diffplug.gradle.spotless.SpotlessExtension
 
 plugins {
-    id("org.cadixdev.licenser") version "0.6.1"
-    id("com.diffplug.spotless") version "7.2.1"
+    id("com.diffplug.spotless") version "8.10.4"
+    // Applied by the modules that produce shaded jars; the version is managed here only.
+    id("com.gradleup.shadow") version "9.6.1" apply false
 }
 
-defaultTasks("updateLicenses", "shadowJar")
+defaultTasks("shadowJar")
 
-version = "0.25.11"
+version = "0.26.0"
 
 subprojects {
+    /*
+     * Java versions.
+     *
+     * Sources are compiled with a JDK 25 toolchain so the build can use current tooling and read
+     * platform APIs published for newer Java versions. Every class file is emitted with
+     * `--release 17`, which makes the plugin loadable on Java 17+ servers and limits the code to
+     * the Java 17 platform API.
+     */
+    val toolchainJavaVersion = 25
+    val targetJavaRelease = 17
+
     version = rootProject.version
     group = "xyz.kyngs.librelogin"
 
-    apply {
-        plugin("org.cadixdev.licenser")
-        plugin("com.diffplug.spotless")
-    }
+    apply(plugin = "com.diffplug.spotless")
 
-    tasks.configureEach {
-        if (name.contains("jar", true)) {
-            dependsOn("updateLicenses")
-//            dependsOn("spotlessJavaApply")
+    plugins.withType<JavaPlugin> {
+        extensions.configure<JavaPluginExtension> {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(toolchainJavaVersion)
+            }
         }
     }
 
-    repositories {
-        mavenLocal()
-        mavenCentral()
-        maven {
-            url = uri("https://jitpack.io")
-        }
+    tasks.withType<JavaCompile>().configureEach {
+        options.encoding = "UTF-8"
+        options.isDeprecation = true
+        options.release = targetJavaRelease
     }
 
-    license {
-        header(rootProject.file("HEADER.txt"))
-        include("**/*.java")
-        newLine(true)
-
-        matching("", closureOf<LicenseProperties> {
-            header.set(rootProject.resources.text.fromFile("licenses/FASTLOGIN_LICENSE"))
-        });
-    }
-
-    spotless {
+    extensions.configure<SpotlessExtension> {
         java {
             googleJavaFormat()
                 .aosp()

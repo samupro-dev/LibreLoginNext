@@ -9,7 +9,6 @@ package xyz.kyngs.librelogin.common.util;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Basic rate limiter using Caffeine's cache as a backend.<br>
@@ -20,24 +19,28 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class RateLimiter<T> {
 
+    private static final Object PRESENT = new Object();
     private final Cache<T, Object> expiring;
 
+    /**
+     * Constructs a new rate limiter with the specified expiration time.
+     *
+     * @param amount the duration amount
+     * @param unit the time unit of the duration
+     */
     public RateLimiter(long amount, TimeUnit unit) {
-        expiring = Caffeine.newBuilder().expireAfterWrite(amount, unit).build();
+        expiring = Caffeine.newBuilder().expireAfterWrite(amount, unit).maximumSize(50_000).build();
     }
 
     /**
-     * @param t key
-     * @return true, if rate limiting occurred, false otherwise
+     * Attempts to process an operation for the given key and determines if it should be
+     * rate-limited.
+     *
+     * @param t the key to check
+     * @return {@code true} if the operation is rate-limited (too frequent), {@code false} if it is
+     *     permitted
      */
     public boolean tryAndLimit(T t) {
-        var wasLimited = new AtomicBoolean(true);
-        expiring.get(
-                t,
-                x -> {
-                    wasLimited.set(false);
-                    return new Object();
-                });
-        return wasLimited.get();
+        return expiring.asMap().putIfAbsent(t, PRESENT) != null;
     }
 }

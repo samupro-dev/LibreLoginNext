@@ -7,17 +7,17 @@
 package xyz.kyngs.librelogin.api.integration;
 
 /**
- * This interface provides support for Limbo.
+ * Integration interface providing support for virtual Limbo server instances.
  *
- * @author bivashy
+ * @param <S> the platform-specific server type
  */
 public interface LimboIntegration<S> {
 
     /**
-     * Creates a limbo server.
+     * Dynamically creates a virtual Limbo server instance with the given identifier.
      *
-     * @param serverName The name of the limbo server to be created.
-     * @return An instance of the created limbo server.
+     * @param serverName the name identifier of the limbo server
+     * @return the created limbo server instance
      */
     S createLimbo(String serverName);
 }

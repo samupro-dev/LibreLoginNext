@@ -6,77 +6,62 @@
 
 package xyz.kyngs.librelogin.common.util;
 
-import java.util.Base64;
-import org.bouncycastle.crypto.params.Argon2Parameters;
-import xyz.kyngs.librelogin.api.BiHolder;
-import xyz.kyngs.librelogin.api.crypto.HashedPassword;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
-public class CryptoUtil {
+/** Cryptographic utility functions for memory wiping and HMAC operations. */
+public final class CryptoUtil {
 
-    public static HashedPassword convertFromBCryptRaw(String raw) {
-        var split = raw.split("\\$");
-        var algo = split[1];
-        var cost = split[2];
-        var rest = split[3];
+    private CryptoUtil() {}
 
-        var salt = rest.substring(0, 22);
-        var hash = rest.substring(22);
-
-        algo = "BCrypt-" + algo.toUpperCase();
-
-        return new HashedPassword(cost + "$" + hash, salt, algo);
+    /**
+     * Securely clears sensitive character data from heap memory.
+     *
+     * @param array the character array to overwrite with zeros
+     */
+    public static void wipe(char[] array) {
+        if (array != null) {
+            Arrays.fill(array, (char) 0);
+        }
     }
 
-    public static BiHolder<String, String> convertHash(String hash) {
-        var split = hash.split("\\$");
-
-        return new BiHolder<>(split[0], split[1]);
+    /**
+     * Securely clears sensitive byte data from heap memory.
+     *
+     * @param array the byte array to overwrite with zeros
+     */
+    public static void wipe(byte[] array) {
+        if (array != null) {
+            Arrays.fill(array, (byte) 0);
+        }
     }
 
-    public static String rawBcryptFromHashed(HashedPassword password) {
-        var extracted = convertHash(password.hash());
-        return "$%s$%s$%s%s"
-                .formatted(
-                        password.algo().replace("BCrypt-", "").toLowerCase(),
-                        extracted.key(),
-                        password.salt(),
-                        extracted.value());
+    /**
+     * Computes a constant-time HMAC-SHA256 hash formatted as a lower-case hexadecimal string.
+     *
+     * @param data the input string to hash
+     * @param key the secret key used for HMAC calculation
+     * @return the 64-character hexadecimal HMAC string
+     */
+    public static String hmacSha256(String data, String key) {
+        if (data == null) return null;
+        if (key == null) key = "";
+        try {
+            var mac = Mac.getInstance("HmacSHA256");
+            var keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(keySpec);
+            var bytes = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            var sb = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            wipe(bytes);
+            return sb.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to compute HMAC-SHA256 hash", e);
+        }
     }
-
-    public static HashedPassword convertFromArgon2ID(byte[] hash, Argon2Parameters parameters) {
-        return new HashedPassword(
-                parameters.getVersion()
-                        + ","
-                        + parameters.getIterations()
-                        + ","
-                        + parameters.getMemory()
-                        + "$"
-                        + Base64.getEncoder().encodeToString(hash),
-                Base64.getEncoder().encodeToString(parameters.getSalt()),
-                "Argon-2ID");
-    }
-
-    public static Argon2IDHashedPassword rawArgonFromHashed(HashedPassword password) {
-        var extracted = convertHash(password.hash());
-
-        var split = extracted.key().split(",");
-
-        var version = Integer.parseInt(split[0]);
-        var iterations = Integer.parseInt(split[1]);
-        var memory = Integer.parseInt(split[2]);
-
-        var salt = Base64.getDecoder().decode(password.salt());
-        var hash = Base64.getDecoder().decode(extracted.value());
-
-        return new Argon2IDHashedPassword(
-                hash,
-                new Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
-                        .withVersion(version)
-                        .withIterations(iterations)
-                        .withSalt(salt)
-                        .withMemoryAsKB(memory)
-                        .build());
-    }
-
-    public record Argon2IDHashedPassword(byte[] hash, Argon2Parameters parameters) {}
 }

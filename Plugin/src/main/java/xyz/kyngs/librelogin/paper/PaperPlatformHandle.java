@@ -6,33 +6,39 @@
 
 package xyz.kyngs.librelogin.paper;
 
-import static xyz.kyngs.librelogin.paper.protocol.ProtocolUtil.getServerVersion;
-
-import com.github.retrooper.packetevents.manager.server.ServerVersion;
 import com.google.common.base.MoreObjects;
 import java.io.File;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.text.Component;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.World;
+import org.bukkit.WorldCreator;
 import org.bukkit.entity.Player;
 import xyz.kyngs.librelogin.api.PlatformHandle;
 import xyz.kyngs.librelogin.api.server.ServerPing;
+import xyz.kyngs.librelogin.lib.adventure.audience.Audience;
+import xyz.kyngs.librelogin.lib.adventure.text.Component;
 
+/** Platform abstraction handle implementation for Paper/Bukkit servers. */
 public class PaperPlatformHandle implements PlatformHandle<Player, World> {
 
     private final PaperLibreLogin plugin;
 
+    /**
+     * Constructs a new {@link PaperPlatformHandle}.
+     *
+     * @param plugin the PaperLibreLogin plugin instance
+     */
     public PaperPlatformHandle(PaperLibreLogin plugin) {
         this.plugin = plugin;
     }
 
     @Override
     public Audience getAudienceForPlayer(Player player) {
-        return player;
+        return new PaperAudience(player);
     }
 
     @Override
@@ -42,28 +48,57 @@ public class PaperPlatformHandle implements PlatformHandle<Player, World> {
 
     @Override
     public CompletableFuture<Throwable> movePlayer(Player player, World to) {
+        if (Bukkit.isPrimaryThread()) {
+            return teleport(player, to);
+        }
+        // Older Paper versions (such as 1.16.5) reject teleportAsync started off the main thread
+        // with "Asynchronous ChunkMapDistance::addPriorityTicket!".
+        var result = new CompletableFuture<Throwable>();
+        try {
+            Bukkit.getScheduler()
+                    .runTask(
+                            plugin.getBootstrap(),
+                            () -> teleport(player, to).thenAccept(result::complete));
+        } catch (RuntimeException e) {
+            result.complete(e);
+        }
+        return result;
+    }
+
+    private static CompletableFuture<Throwable> teleport(Player player, World to) {
         return player.teleportAsync(to.getSpawnLocation())
-                .thenApply(success -> success ? null : new RuntimeException("Unknown cause"));
+                .thenApply(
+                        success ->
+                                success ? null : (Throwable) new RuntimeException("Unknown cause"))
+                .exceptionally(ex -> ex);
     }
 
     @Override
     public void kick(Player player, Component reason) {
-        PaperUtil.runSyncAndWait(() -> player.kick(reason), plugin);
+        if (Bukkit.isPrimaryThread()) {
+            PaperUtil.kickPlayerSafe(player, reason);
+        } else {
+            Bukkit.getScheduler()
+                    .runTask(plugin.getBootstrap(), () -> PaperUtil.kickPlayerSafe(player, reason));
+        }
     }
 
     @Override
     public World getServer(String name, boolean limbo) {
         var world = Bukkit.getWorld(name);
 
-        if (world != null) return world;
+        if (world != null) {
+            return world;
+        }
 
         var file = new File(name);
         var exists = file.exists();
 
         if (exists) {
-            plugin.getLogger().info("Found world file for " + name + ", loading...");
+            plugin.getLogger().info("Loading world '" + name + "'...");
         } else {
-            plugin.getLogger().info("World file for " + name + " not found, creating...");
+            plugin.getLogger()
+                    .info("World '" + name + "' not found on disk, creating new world...");
         }
 
         var creator = new WorldCreator(name);
@@ -72,23 +107,28 @@ public class PaperPlatformHandle implements PlatformHandle<Player, World> {
             creator.generator("librelogin:void");
         }
 
-        world = Bukkit.createWorld(creator);
+        // World creation and game rules are main-thread only; callers may be async (reload,
+        // AsyncPlayerSpawnLocationEvent, /login authorization).
+        var created = new World[1];
+        PaperUtil.runSyncAndWait(
+                () -> {
+                    var existing = Bukkit.getWorld(name);
+                    var newWorld = existing != null ? existing : Bukkit.createWorld(creator);
 
-        if (limbo) {
-            world.setSpawnLocation(
-                    new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 1, 0.5));
-            if (getServerVersion().isOlderThan(ServerVersion.V_1_21_9))
-                world.setKeepSpawnInMemory(true);
-            if (getServerVersion().isOlderThan(ServerVersion.V_1_21_11)) {
-                world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
-                world.setGameRule(GameRule.DO_INSOMNIA, false);
-            } else {
-                world.setGameRule(GameRules.ADVANCE_TIME, false);
-                world.setGameRule(GameRules.SPAWN_PHANTOMS, false);
-            }
-        }
+                    if (limbo && existing == null && newWorld != null) {
+                        newWorld.setSpawnLocation(new Location(newWorld, 0.5, 70, 0.5));
+                        PaperUtil.setBooleanGameRule(
+                                newWorld, "advance_time", "doDaylightCycle", false);
+                        PaperUtil.setBooleanGameRule(
+                                newWorld, "spawn_phantoms", "doInsomnia", false);
+                        PaperUtil.setBooleanGameRule(
+                                newWorld, "spawn_mobs", "doMobSpawning", false);
+                    }
+                    created[0] = newWorld;
+                },
+                plugin);
 
-        return world;
+        return created[0];
     }
 
     @Override
@@ -103,7 +143,10 @@ public class PaperPlatformHandle implements PlatformHandle<Player, World> {
 
     @Override
     public String getIP(Player player) {
-        return player.getAddress().getAddress().getHostAddress();
+        var addr = player.getAddress();
+        if (addr == null) return "127.0.0.1";
+        var inet = addr.getAddress();
+        return inet != null ? inet.getHostAddress() : addr.getHostString();
     }
 
     @Override
@@ -123,7 +166,12 @@ public class PaperPlatformHandle implements PlatformHandle<Player, World> {
 
     @Override
     public int getConnectedPlayers(World server) {
-        return server.getPlayerCount();
+        if (server == null) return 0;
+        try {
+            return server.getPlayerCount();
+        } catch (LinkageError e) {
+            return server.getPlayers().size();
+        }
     }
 
     @Override
@@ -156,12 +204,8 @@ public class PaperPlatformHandle implements PlatformHandle<Player, World> {
                                 plugin ->
                                         MoreObjects.toStringHelper(plugin)
                                                 .add("name", plugin.getName())
-                                                .add(
-                                                        "version",
-                                                        plugin.getDescription().getVersion())
-                                                .add(
-                                                        "authors",
-                                                        plugin.getDescription().getAuthors())
+                                                .add("version", PaperUtil.getPluginVersion(plugin))
+                                                .add("authors", PaperUtil.getPluginAuthors(plugin))
                                                 .toString())
                         .toList(),
                 plugin.getServerHandler().getLimboServers().stream().map(this::fromWorld).toList(),

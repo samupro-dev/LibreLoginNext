@@ -11,6 +11,12 @@ import java.util.UUID;
 import xyz.kyngs.librelogin.api.database.ReadDatabaseProvider;
 import xyz.kyngs.librelogin.api.database.User;
 
+/**
+ * Base abstract class for read database providers utilized exclusively during data migration.
+ *
+ * <p>Individual lookup operations are intentionally unsupported as migration providers only perform
+ * bulk user retrieval through {@link #getAllUsers()}.
+ */
 public abstract class MigrateReadProvider implements ReadDatabaseProvider {
 
     @Override

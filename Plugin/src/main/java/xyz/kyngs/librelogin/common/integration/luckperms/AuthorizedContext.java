@@ -10,27 +10,38 @@ import net.luckperms.api.context.ContextCalculator;
 import net.luckperms.api.context.ContextConsumer;
 import net.luckperms.api.context.ContextSet;
 import net.luckperms.api.context.ImmutableContextSet;
-import org.checkerframework.checker.nullness.qual.NonNull;
+import org.jetbrains.annotations.NotNull;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 
+/**
+ * LuckPerms {@link ContextCalculator} providing the {@code librelogin-authorized} context, which
+ * indicates whether a player has completed authentication.
+ *
+ * @param <P> the platform-specific player type
+ */
 public class AuthorizedContext<P> implements ContextCalculator<P> {
+
+    private static final String KEY = "librelogin-authorized";
 
     private final AuthenticLibreLogin<P, ?> plugin;
 
+    /**
+     * Constructs a new authorized context calculator.
+     *
+     * @param plugin the LibreLogin plugin instance
+     */
     public AuthorizedContext(AuthenticLibreLogin<P, ?> plugin) {
         this.plugin = plugin;
     }
 
-    private static final String KEY = "librelogin-authorized";
-
     @Override
-    public void calculate(@NonNull P player, @NonNull ContextConsumer consumer) {
+    public void calculate(@NotNull P player, @NotNull ContextConsumer consumer) {
         consumer.accept(
                 KEY, Boolean.toString(plugin.getAuthorizationProvider().isAuthorized(player)));
     }
 
     @Override
-    public @NonNull ContextSet estimatePotentialContexts() {
+    public @NotNull ContextSet estimatePotentialContexts() {
         return ImmutableContextSet.builder().add(KEY, "true").add(KEY, "false").build();
     }
 }

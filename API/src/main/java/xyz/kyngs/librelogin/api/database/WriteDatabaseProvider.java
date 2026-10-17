@@ -9,37 +9,36 @@ package xyz.kyngs.librelogin.api.database;
 import java.util.Collection;
 
 /**
- * This interface is used to write to the database.
- *
- * @author kyngs
+ * Write-only interface for creating, modifying, and deleting user account records in a persistent
+ * store.
  */
 public interface WriteDatabaseProvider {
 
     /**
-     * This method adds a player to the database.
+     * Inserts a new user account into the database.
      *
-     * @param user The player to add.
+     * @param user the user model to insert
      */
     void insertUser(User user);
 
     /**
-     * This method adds several players to the database.
+     * Bulk inserts a collection of user accounts into the database.
      *
-     * @param users The players to add.
+     * @param users the collection of users to insert
      */
     void insertUsers(Collection<User> users);
 
     /**
-     * This method updates a player in the database.
+     * Persists updates to an existing user account record in the database.
      *
-     * @param user The player to update.
+     * @param user the user model with updated fields
      */
     void updateUser(User user);
 
     /**
-     * This method deletes a player from the database.
+     * Deletes a user account record from the database.
      *
-     * @param user The player to delete.
+     * @param user the user model to remove
      */
     void deleteUser(User user);
 }

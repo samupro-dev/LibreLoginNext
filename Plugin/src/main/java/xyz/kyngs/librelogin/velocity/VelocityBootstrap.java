@@ -8,89 +8,91 @@ package xyz.kyngs.librelogin.velocity;
 
 import com.google.inject.Inject;
 import com.google.inject.Injector;
+import com.velocitypowered.api.event.PostOrder;
 import com.velocitypowered.api.event.Subscribe;
+import com.velocitypowered.api.event.connection.PreLoginEvent;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Dependency;
 import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.PluginContainer;
-import com.velocitypowered.api.plugin.PluginDescription;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
-import java.nio.file.Path;
-import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import net.byteflux.libby.VelocityLibraryManager;
+import net.kyori.adventure.text.Component;
 import org.slf4j.Logger;
 import xyz.kyngs.librelogin.api.LibreLoginPlugin;
 import xyz.kyngs.librelogin.api.provider.LibreLoginProvider;
+import xyz.kyngs.librelogin.common.ShutdownException;
 
+/**
+ * Bootstrap entry point for LibreLogin on the Velocity proxy platform.
+ *
+ * <p>Handles dependency injection and proxy lifecycle event handling.
+ */
 @Plugin(
         id = "librelogin",
-        name = "LibreLogin",
+        name = "LibreLogin Next",
         version = "@version@",
-        // TODO: Update authors
         authors = {"vuxeim", "sapphirecode"},
         dependencies = {
             @Dependency(id = "floodgate", optional = true),
             @Dependency(id = "luckperms", optional = true),
-            @Dependency(id = "protocolize", optional = true),
-            @Dependency(id = "redisbungee", optional = true),
-            // TODO: Remove nano limbo plugin support
-            @Dependency(id = "nanolimbovelocity", optional = true)
+            @Dependency(id = "protocolize", optional = true)
         })
 public class VelocityBootstrap implements LibreLoginProvider<Player, RegisteredServer> {
 
-    ProxyServer server;
+    private final ProxyServer server;
+    private final Logger logger;
     private final VelocityLibreLogin libreLogin;
 
+    /**
+     * Constructs the Velocity plugin bootstrap instance and initializes dependencies.
+     *
+     * @param server the Velocity proxy server instance
+     * @param injector the Guice dependency injector
+     * @param logger the SLF4J logger instance
+     * @param container the plugin container descriptor
+     */
     @Inject
     public VelocityBootstrap(
             ProxyServer server, Injector injector, Logger logger, PluginContainer container) {
         this.server = server;
-
-        // This is a very ugly hack to be able to load libraries in the constructor
-        // We cannot pass this as a parameter to the constructor because the plugin is technically
-        // still not loaded
-        // And, we cannot past the container as a parameter to the constructor because the proxy
-        // still did not assign the instance to it.
-        // So, we have to "mock" the container and pass this as the instance. I'm kinda surprised
-        // this works, but in theory could break in the future.
-        var libraryManager =
-                new VelocityLibraryManager<>(
-                        logger,
-                        Path.of("plugins", "librelogin"),
-                        server.getPluginManager(),
-                        new PluginContainer() {
-                            @Override
-                            public PluginDescription getDescription() {
-                                return container.getDescription();
-                            }
-
-                            @Override
-                            public Optional<?> getInstance() {
-                                return Optional.of(this);
-                            }
-
-                            @Override
-                            public ExecutorService getExecutorService() {
-                                return Executors.newSingleThreadExecutor();
-                            }
-                        });
-
-        logger.info("Loading libraries...");
-
-        libraryManager.configureFromJSON();
-
+        this.logger = logger;
         libreLogin = new VelocityLibreLogin(this);
         injector.injectMembers(libreLogin);
     }
 
+    /**
+     * Handles proxy initialization by enabling the core plugin and registering event listeners.
+     *
+     * @param event the proxy initialize event
+     */
     @Subscribe
+    @SuppressWarnings("deprecation") // PostOrder overload: present on every Velocity 3.x build
     public void onInitialization(ProxyInitializeEvent event) {
-        libreLogin.enable();
+        try {
+            libreLogin.enable();
+        } catch (Throwable t) {
+            // Never leave the proxy accepting players without authentication.
+            if (!(t instanceof ShutdownException)) {
+                logger.error(
+                        "LibreLogin Next failed to start. LOCKDOWN: every login is denied.", t);
+            }
+            server.getEventManager()
+                    .register(
+                            this,
+                            PreLoginEvent.class,
+                            PostOrder.FIRST,
+                            lockdown ->
+                                    lockdown.setResult(
+                                            PreLoginEvent.PreLoginComponentResult.denied(
+                                                    Component.text(
+                                                            "Authentication is unavailable on this"
+                                                                    + " proxy. Please contact an"
+                                                                    + " administrator."))));
+            return;
+        }
 
         server.getEventManager()
                 .register(
@@ -107,8 +109,17 @@ public class VelocityBootstrap implements LibreLoginProvider<Player, RegisteredS
         return libreLogin;
     }
 
+    /**
+     * Handles proxy shutdown by gracefully disabling the plugin.
+     *
+     * @param event the proxy shutdown event
+     */
     @Subscribe
     public void onShutdown(ProxyShutdownEvent event) {
+        server.getEventManager().unregisterListeners(this);
+        for (var task : server.getScheduler().tasksByPlugin(this)) {
+            task.cancel();
+        }
         libreLogin.disable();
     }
 }

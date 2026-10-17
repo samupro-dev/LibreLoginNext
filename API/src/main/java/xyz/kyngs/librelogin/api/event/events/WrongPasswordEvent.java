@@ -9,31 +9,38 @@ package xyz.kyngs.librelogin.api.event.events;
 import xyz.kyngs.librelogin.api.event.PlayerBasedEvent;
 
 /**
- * This event is called after the player has tried to enter the password, but it doesn't match with
- * the player's real password. Note, that this event is fired when the player executes the following
- * commands: /login, /changepassword, /premium, /setemail. Use {@link #getSource()} to check the
- * source of the event.
+ * Fired when a player enters an incorrect password or invalid TOTP code during authentication or
+ * security actions.
+ *
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  */
 public interface WrongPasswordEvent<P, S> extends PlayerBasedEvent<P, S> {
 
     /**
-     * Returns the source of the incorrect password.
+     * Gets the specific authentication or verification action that failed.
      *
-     * @return The source of the incorrect password
+     * @return the authentication failure source
      */
     AuthenticationSource getSource();
 
-    /** Possible sources for incorrect password. */
+    /** Enumerates the context sources where an authentication failure occurred. */
     enum AuthenticationSource {
-        /** The player has used the /login command with a wrong password */
+        /** The player entered an incorrect password during login. */
         LOGIN,
-        /** The player has used the /login command with a wrong TOTP code */
+        /** The player entered an incorrect TOTP verification code. */
         TOTP,
-        /** The player has used the /changepassword command with a wrong password */
+        /** The player supplied an invalid current password while attempting a password change. */
         CHANGE_PASSWORD,
-        /** The player has used the /premium command with a wrong password */
+        /** The player supplied an invalid password while attempting to toggle premium status. */
         PREMIUM_ENABLE,
-        /** The player has used the /setemail command with a wrong password */
-        SET_EMAIL
+        /**
+         * The player supplied an invalid password while attempting to configure an email address.
+         */
+        SET_EMAIL,
+        /** The player supplied an invalid password while attempting to unregister. */
+        UNREGISTER,
+        /** The player supplied an invalid password while attempting to disable 2FA. */
+        TFA_DISABLE
     }
 }

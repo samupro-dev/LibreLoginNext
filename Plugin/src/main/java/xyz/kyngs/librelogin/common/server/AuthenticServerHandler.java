@@ -6,53 +6,95 @@
 
 package xyz.kyngs.librelogin.common.server;
 
-import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.*;
+import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.IGNORE_MAX_PLAYERS_FROM_BACKEND_PING;
+import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.LIMBO;
+import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.LOBBY;
+import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.PING_SERVERS;
+import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.REMEMBER_LAST_SERVER;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.SetMultimap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.Nullable;
 import xyz.kyngs.librelogin.api.database.User;
 import xyz.kyngs.librelogin.api.event.exception.EventCancelledException;
 import xyz.kyngs.librelogin.api.server.ServerHandler;
 import xyz.kyngs.librelogin.api.server.ServerPing;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
-import xyz.kyngs.librelogin.common.config.ConfigurationKeys;
 import xyz.kyngs.librelogin.common.event.events.AuthenticLimboServerChooseEvent;
 import xyz.kyngs.librelogin.common.event.events.AuthenticLobbyServerChooseEvent;
+import xyz.kyngs.librelogin.common.util.CancellableTask;
 
+/**
+ * Standard implementation of {@link ServerHandler}. Manages backend server routing, server ping
+ * caching, and load balancing between available lobby and Limbo instances.
+ *
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
+ */
 public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
 
     private final LoadingCache<S, Optional<ServerPing>> pingCache;
     private final AuthenticLibreLogin<P, S> plugin;
-    private final Collection<S> limboServers;
-    private final Multimap<String, S> lobbyServers;
+    // Replaced as a whole on reload, so routing never sees a half-built list.
+    private volatile Collection<S> limboServers;
+    private volatile SetMultimap<String, S> lobbyServers;
+    private final CancellableTask pingRefreshTask;
+    // Pings block (up to seconds each); keep them off the JVM-wide ForkJoin common pool.
+    private final ExecutorService pingExecutor =
+            Executors.newFixedThreadPool(
+                    2,
+                    runnable -> {
+                        var thread = new Thread(runnable, "LibreLoginNext-Ping");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
 
+    /**
+     * Constructs a new server handler and initializes ping caches and configured servers.
+     *
+     * @param plugin the LibreLogin plugin instance
+     */
     public AuthenticServerHandler(AuthenticLibreLogin<P, S> plugin) {
         this.plugin = plugin;
-
-        this.lobbyServers = HashMultimap.create();
-        this.limboServers = new ArrayList<>();
+        this.lobbyServers = Multimaps.synchronizedSetMultimap(HashMultimap.create());
+        this.limboServers = new CopyOnWriteArrayList<>();
 
         this.pingCache =
                 Caffeine.newBuilder()
+                        .executor(pingExecutor)
+                        .expireAfterWrite(30, TimeUnit.SECONDS)
+                        .maximumSize(100)
                         .build(
                                 server -> {
-                                    if (!plugin.getConfiguration()
-                                            .get(ConfigurationKeys.PING_SERVERS))
+                                    if (!plugin.getConfiguration().get(PING_SERVERS)) {
                                         return Optional.of(new ServerPing(Integer.MAX_VALUE));
+                                    }
 
-                                    plugin.getLogger().debug("Pinging server " + server);
+                                    if (plugin.getLogger().isDebugEnabled()) {
+                                        plugin.getLogger()
+                                                .debug("Pinging backend server: " + server);
+                                    }
                                     var ping = plugin.getPlatformHandle().ping(server);
-                                    plugin.getLogger()
-                                            .debug("Pinged server " + server + ": " + ping);
+                                    if (plugin.getLogger().isDebugEnabled()) {
+                                        plugin.getLogger()
+                                                .debug("Ping response for " + server + ": " + ping);
+                                    }
 
-                                    return Optional.ofNullable(
+                                    if (ping == null) return Optional.empty();
+                                    return Optional.of(
                                             plugin.getConfiguration()
                                                             .get(
                                                                     IGNORE_MAX_PLAYERS_FROM_BACKEND_PING)
@@ -60,48 +102,86 @@ public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
                                                     : ping);
                                 });
 
-        plugin.repeat(() -> pingCache.refreshAll(pingCache.asMap().keySet()), 10000, 10000);
+        pingRefreshTask =
+                plugin.repeat(() -> pingCache.refreshAll(pingCache.asMap().keySet()), 10000, 10000);
 
+        if (plugin.getConfiguration().get(PING_SERVERS)) {
+            plugin.getLogger().info("Pinging registered backend servers...");
+        }
+
+        reload();
+
+        if (plugin.getLogger().isDebugEnabled()) {
+            plugin.getLogger().debug("Registered server destinations:");
+            for (S server : plugin.getPlatformHandle().getServers()) {
+                plugin.getLogger()
+                        .debug(
+                                " - "
+                                        + plugin.getPlatformHandle().getServerName(server)
+                                        + " ("
+                                        + server
+                                        + ")");
+            }
+        }
+
+        if (plugin.getConfiguration().get(PING_SERVERS)) {
+            plugin.getLogger().info("Initial backend server ping check completed.");
+        }
+    }
+
+    /**
+     * Reloads configured Limbo and Lobby servers from the active configuration and clears stale
+     * ping entries.
+     */
+    public void reload() {
+        // Build the new routing tables completely (this may block on pings), then swap them in.
+        // Players keep being routed with the previous tables meanwhile, and a failure while
+        // building leaves the previous tables in place.
         var handle = plugin.getPlatformHandle();
-
-        if (plugin.getConfiguration().get(ConfigurationKeys.PING_SERVERS))
-            plugin.getLogger().info("Pinging servers...");
+        Collection<S> newLimbo = new CopyOnWriteArrayList<>();
+        SetMultimap<String, S> newLobby = Multimaps.synchronizedSetMultimap(HashMultimap.create());
 
         for (String limbo : plugin.getConfiguration().get(LIMBO)) {
             var server = handle.getServer(limbo, true);
             if (server != null) {
-                registerLimboServer(server);
+                pingCache.invalidate(server);
+                getLatestPing(server);
+                newLimbo.add(server);
             } else {
-                plugin.getLogger().warn("Limbo server/world " + limbo + " not found!");
+                plugin.getLogger()
+                        .warn("Configured Limbo server/world '" + limbo + "' was not found!");
             }
         }
 
         plugin.getConfiguration()
-                .get(ConfigurationKeys.LOBBY)
+                .get(LOBBY)
                 .forEach(
                         (forced, server) -> {
                             var s = handle.getServer(server, false);
                             if (s != null) {
-                                registerLobbyServer(s, forced);
+                                pingCache.invalidate(s);
+                                getLatestPing(s);
+                                newLobby.put(forced, s);
                             } else {
                                 plugin.getLogger()
-                                        .warn("Lobby server/world " + server + " not found!");
+                                        .warn(
+                                                "Configured Lobby server/world '"
+                                                        + server
+                                                        + "' was not found!");
                             }
                         });
 
-        plugin.getLogger().debug("List of registered servers: ");
+        limboServers = newLimbo;
+        lobbyServers = newLobby;
+    }
 
-        for (S server : plugin.getPlatformHandle().getServers()) {
-            plugin.getLogger()
-                    .debug(
-                            "Server: "
-                                    + plugin.getPlatformHandle().getServerName(server)
-                                    + " | "
-                                    + server);
+    /** Shuts down background ping refresh tasks and clears the ping cache. */
+    public void shutdown() {
+        if (pingRefreshTask != null) {
+            pingRefreshTask.cancel();
         }
-
-        if (plugin.getConfiguration().get(ConfigurationKeys.PING_SERVERS))
-            plugin.getLogger().info("Pinged servers...");
+        pingCache.invalidateAll();
+        pingExecutor.shutdownNow();
     }
 
     @Override
@@ -114,6 +194,15 @@ public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
         return chooseLobbyServerInternal(user, player, remember, fallback);
     }
 
+    /**
+     * Internal routine to evaluate and select the best available lobby server for a player.
+     *
+     * @param user the database user, if available
+     * @param player the platform player instance
+     * @param remember whether to attempt reconnecting to the last remembered server
+     * @param fallback whether this resolution is a fallback selection (or null if unspecified)
+     * @return the selected server instance, or {@code null} if no viable server was found
+     */
     public S chooseLobbyServerInternal(
             @Nullable User user, P player, boolean remember, Boolean fallback) {
         if (user != null && remember && plugin.getConfiguration().get(REMEMBER_LAST_SERVER)) {
@@ -136,29 +225,38 @@ public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
 
         plugin.getEventProvider().fire(plugin.getEventTypes().lobbyServerChoose, event);
 
-        if (event.isCancelled()) throw new EventCancelledException();
+        if (event.isCancelled()) {
+            throw new EventCancelledException();
+        }
 
-        if (event.getServer() != null) return event.getServer();
+        if (event.getServer() != null) {
+            return event.getServer();
+        }
 
         var virtual = plugin.getPlatformHandle().getPlayersVirtualHost(player);
 
-        if (virtual != null)
+        if (virtual != null) {
             plugin.getLogger()
                     .debug(
-                            "Virtual host for player "
-                                    + plugin.getPlatformHandle().getUsernameForPlayer(player)
-                                    + ": "
-                                    + virtual);
+                            "Virtual host for player {}: {}",
+                            plugin.getPlatformHandle().getUsernameForPlayer(player),
+                            virtual);
+        }
 
-        var servers = virtual == null ? lobbyServers.get("root") : lobbyServers.get(virtual);
+        List<S> serverList;
+        var lobbies = lobbyServers;
+        synchronized (lobbies) {
+            serverList =
+                    new ArrayList<>(virtual == null ? lobbies.get("root") : lobbies.get(virtual));
+            if (serverList.isEmpty()) {
+                serverList = new ArrayList<>(lobbies.get("root"));
+            }
+        }
 
-        if (servers.isEmpty()) servers = lobbyServers.get("root");
-
-        return servers.stream()
+        return serverList.stream()
                 .filter(
                         server -> {
                             var ping = getLatestPing(server);
-
                             return ping != null
                                     && ping.maxPlayers()
                                             > plugin.getPlatformHandle()
@@ -181,13 +279,14 @@ public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
 
         plugin.getEventProvider().fire(plugin.getEventTypes().limboServerChoose, event);
 
-        if (event.getServer() != null) return event.getServer();
+        if (event.getServer() != null) {
+            return event.getServer();
+        }
 
         return limboServers.stream()
                 .filter(
                         server -> {
                             var ping = getLatestPing(server);
-
                             return ping != null
                                     && ping.maxPlayers()
                                             > plugin.getPlatformHandle()

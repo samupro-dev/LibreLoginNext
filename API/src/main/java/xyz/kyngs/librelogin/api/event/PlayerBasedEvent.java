@@ -7,44 +7,45 @@
 package xyz.kyngs.librelogin.api.event;
 
 import java.util.UUID;
-import net.kyori.adventure.audience.Audience;
 import org.jetbrains.annotations.Nullable;
 import xyz.kyngs.librelogin.api.database.User;
+import xyz.kyngs.librelogin.lib.adventure.audience.Audience;
 
 /**
- * An abstract event for events, that include player info
+ * Base interface for events involving a specific player and their database profile.
  *
- * @author kyngs
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  */
 public interface PlayerBasedEvent<P, S> extends Event<P, S> {
 
     /**
-     * Gets the player's UUID
+     * Gets the UUID of the player associated with this event.
      *
-     * @return the player's uuid
+     * @return the player UUID
      */
     UUID getUUID();
 
     /**
-     * Gets the player
+     * Gets the underlying platform player instance if locally connected.
      *
-     * @return the player, or null if the affected player did not execute the change
+     * @return the player instance, or null if the action was performed remotely/offline
      */
     @Nullable
     P getPlayer();
 
     /**
-     * Gets the audience
+     * Gets the Adventure {@link Audience} for sending messages, titles, and action bars to the
+     * player.
      *
-     * @return audience of the player, all messages, titles etc. sent to this audience should be
-     *     sent to the player
+     * @return the player audience
      */
     Audience getAudience();
 
     /**
-     * Gets the player's database profile
+     * Gets the database user record associated with the player.
      *
-     * @return player's database profile or null if the player comes from floodgate
+     * @return the database user profile, or null if unlinked
      */
     @Nullable
     User getUser();

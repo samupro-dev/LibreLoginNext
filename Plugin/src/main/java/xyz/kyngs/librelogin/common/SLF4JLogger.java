@@ -9,11 +9,21 @@ package xyz.kyngs.librelogin.common;
 import java.util.function.Supplier;
 import xyz.kyngs.librelogin.api.Logger;
 
+/**
+ * An SLF4J-backed implementation of the {@link Logger} interface. Delegates log statements to an
+ * underlying SLF4J logger with support for dynamic debug-level filtering.
+ */
 public class SLF4JLogger implements Logger {
 
     private final org.slf4j.Logger slf4j;
     private final Supplier<Boolean> debug;
 
+    /**
+     * Constructs a new {@code SLF4JLogger} instance.
+     *
+     * @param slf4j the underlying SLF4J logger
+     * @param debug a supplier indicating whether debug logging is enabled
+     */
     public SLF4JLogger(org.slf4j.Logger slf4j, Supplier<Boolean> debug) {
         this.slf4j = slf4j;
         this.debug = debug;
@@ -30,6 +40,11 @@ public class SLF4JLogger implements Logger {
     }
 
     @Override
+    public void info(String format, Object... arguments) {
+        slf4j.info(format, arguments);
+    }
+
+    @Override
     public void warn(String message) {
         slf4j.warn(message);
     }
@@ -37,6 +52,11 @@ public class SLF4JLogger implements Logger {
     @Override
     public void warn(String message, Throwable throwable) {
         slf4j.warn(message, throwable);
+    }
+
+    @Override
+    public void warn(String format, Object... arguments) {
+        slf4j.warn(format, arguments);
     }
 
     @Override
@@ -50,16 +70,33 @@ public class SLF4JLogger implements Logger {
     }
 
     @Override
+    public void error(String format, Object... arguments) {
+        slf4j.error(format, arguments);
+    }
+
+    @Override
+    public boolean isDebugEnabled() {
+        return Boolean.TRUE.equals(debug.get()) || slf4j.isDebugEnabled();
+    }
+
+    @Override
     public void debug(String message) {
-        if (debug.get()) {
+        if (isDebugEnabled()) {
             slf4j.info("[DEBUG] " + message);
         }
     }
 
     @Override
     public void debug(String message, Throwable throwable) {
-        if (debug.get()) {
+        if (isDebugEnabled()) {
             slf4j.info("[DEBUG] " + message, throwable);
+        }
+    }
+
+    @Override
+    public void debug(String format, Object... arguments) {
+        if (isDebugEnabled()) {
+            slf4j.info("[DEBUG] " + format, arguments);
         }
     }
 }

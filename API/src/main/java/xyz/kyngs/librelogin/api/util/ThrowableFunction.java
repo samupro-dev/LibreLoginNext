@@ -7,22 +7,22 @@
 package xyz.kyngs.librelogin.api.util;
 
 /**
- * A functional interface that represents a function that takes in a parameter of type T and returns
- * a result of type V, and throws an exception of type {@link E}.
+ * Functional interface for a single-argument function that can throw a checked exception.
  *
- * @param <T> the type of the input to the function
- * @param <V> the type of the result of the function
- * @param <E> the type of the exception that can be thrown
+ * @param <T> the type of the input argument
+ * @param <V> the type of the result
+ * @param <E> the type of exception that may be thrown
  * @see java.util.function.Function
  */
+@FunctionalInterface
 public interface ThrowableFunction<T, V, E extends Throwable> {
 
     /**
-     * Applies the given function to the specified argument.
+     * Applies this function to the given argument.
      *
-     * @param t the argument to apply the function to
-     * @return the result of applying the function to the argument
-     * @throws E if an error occurs during the application of the function
+     * @param t the function argument
+     * @return the function result
+     * @throws E if an error occurs during execution
      */
     V apply(T t) throws E;
 }

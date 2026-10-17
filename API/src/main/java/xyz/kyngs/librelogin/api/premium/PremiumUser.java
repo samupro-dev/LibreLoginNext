@@ -9,11 +9,10 @@ package xyz.kyngs.librelogin.api.premium;
 import java.util.UUID;
 
 /**
- * This record holds basic premium information.
+ * Encapsulates Mojang premium account profile data.
  *
- * @param uuid The (premium) UUID of the player.
- * @param name The name of the player.
- * @param reliable Whether the information is reliable. If not, the {@link PremiumUser#name()}
- *     string might not match the queried name (ignoring case).
+ * @param uuid the official Mojang UUID of the player
+ * @param name the official capitalized username of the player
+ * @param reliable whether the username exact casing is guaranteed to match the queried player
  */
 public record PremiumUser(UUID uuid, String name, boolean reliable) {}

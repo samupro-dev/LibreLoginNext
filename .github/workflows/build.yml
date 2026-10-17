@@ -1,50 +1,41 @@
-name: Java CI with Gradle
+name: build
 
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
+on: [push]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
+      # Checkout
+      - uses: actions/checkout@v7
 
-    # Configure Gradle for optimal use in GitHub Actions, including caching of downloaded dependencies.
-    # See: https://github.com/gradle/actions/blob/main/setup-gradle/README.md
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
+      # Setup java
+      - uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '25'
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x ./gradlew
-    - name: Shadow build with Gradle Wrapper
-      run: ./gradlew build
+      # Cache
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
-  dependency-submission:
+      # Build
+      - name: Build with Gradle
+        run: |
+          chmod +x ./gradlew
+          ./gradlew build shadowJar
+          find . -type f -name "*.jar" -exec ls -lh {} \;
 
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-
-    # Generates and submits a dependency graph, enabling Dependabot Alerts for all project dependencies.
-    # See: https://github.com/gradle/actions/blob/main/dependency-submission/README.md
-    - name: Generate and submit dependency graph
-      uses: gradle/actions/dependency-submission@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
+      # Upload
+      - uses: actions/upload-artifact@v7
+        with:
+          name: libreloginnext
+          path: target/*.jar
+          retention-days: 1

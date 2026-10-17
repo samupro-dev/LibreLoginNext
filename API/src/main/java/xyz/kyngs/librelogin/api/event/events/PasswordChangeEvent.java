@@ -10,17 +10,18 @@ import xyz.kyngs.librelogin.api.crypto.HashedPassword;
 import xyz.kyngs.librelogin.api.event.PlayerBasedEvent;
 
 /**
- * Fires after player has changed their password, their profile is already updated at the moment the
- * event fires
+ * Fired after a player's password has been updated. The player's user profile already contains the
+ * updated password at the time this event is fired.
  *
- * @author kyngs
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  */
 public interface PasswordChangeEvent<P, S> extends PlayerBasedEvent<P, S> {
 
     /**
-     * Gets the player's old password, in hashed form
+     * Gets the previous hashed password before the update took place.
      *
-     * @return player's old password
+     * @return the old hashed password
      */
     HashedPassword getOldPassword();
 }

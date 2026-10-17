@@ -12,20 +12,42 @@ import java.util.UUID;
 import xyz.kyngs.librelogin.api.crypto.HashedPassword;
 import xyz.kyngs.librelogin.api.database.User;
 
+/**
+ * Standard implementation of the {@link User} entity representing player authentication and profile
+ * data stored in the database.
+ */
 public class AuthenticUser implements User {
 
-    private final UUID uuid;
-    private UUID premiumUUID;
-    private HashedPassword hashedPassword;
-    private String lastNickname;
-    private Timestamp joinDate;
-    private Timestamp lastSeen;
-    private String secret;
-    private String ip;
-    private Timestamp lastAuthentication;
-    private String lastServer;
-    private String email;
+    // Fields are read and written from several threads (commands, listeners, cache): volatile
+    // gives every reader the latest value of each field.
 
+    private final UUID uuid;
+    private volatile UUID premiumUUID;
+    private volatile HashedPassword hashedPassword;
+    private volatile String lastNickname;
+    private volatile Timestamp joinDate;
+    private volatile Timestamp lastSeen;
+    private volatile String secret;
+    private volatile String ip;
+    private volatile Timestamp lastAuthentication;
+    private volatile String lastServer;
+    private volatile String email;
+
+    /**
+     * Constructs a new {@link AuthenticUser} with all required and optional attributes.
+     *
+     * @param uuid the unique identifier of the user
+     * @param premiumUUID the official Mojang UUID if premium, or null
+     * @param hashedPassword the hashed password credential, or null if unregistered
+     * @param lastNickname the last known username
+     * @param joinDate the timestamp when the user first joined
+     * @param lastSeen the timestamp when the user was last seen
+     * @param secret the TOTP secret key, or null
+     * @param ip the last known IP address
+     * @param lastAuthentication the timestamp of the last successful authentication
+     * @param lastServer the name of the last connected server
+     * @param email the associated email address, or null
+     */
     public AuthenticUser(
             UUID uuid,
             UUID premiumUUID,
@@ -51,64 +73,99 @@ public class AuthenticUser implements User {
         this.email = email;
     }
 
-    public Timestamp getLastAuthentication() {
-        return lastAuthentication;
-    }
-
-    public void setLastAuthentication(Timestamp lastAuthentication) {
-        this.lastAuthentication = lastAuthentication;
-    }
-
-    public Timestamp getJoinDate() {
-        return joinDate;
-    }
-
-    public void setJoinDate(Timestamp joinDate) {
-        this.joinDate = joinDate;
-    }
-
-    public Timestamp getLastSeen() {
-        return lastSeen;
-    }
-
-    public void setLastSeen(Timestamp lastSeen) {
-        this.lastSeen = lastSeen;
-    }
-
-    public HashedPassword getHashedPassword() {
-        return hashedPassword;
-    }
-
-    public void setHashedPassword(HashedPassword hashedPassword) {
-        this.hashedPassword = hashedPassword;
-    }
-
+    @Override
     public UUID getUuid() {
         return uuid;
     }
 
+    @Override
     public UUID getPremiumUUID() {
         return premiumUUID;
     }
 
+    @Override
     public void setPremiumUUID(UUID premiumUUID) {
         this.premiumUUID = premiumUUID;
     }
 
+    @Override
+    public HashedPassword getHashedPassword() {
+        return hashedPassword;
+    }
+
+    @Override
+    public void setHashedPassword(HashedPassword hashedPassword) {
+        this.hashedPassword = hashedPassword;
+    }
+
+    @Override
     public String getLastNickname() {
         return lastNickname;
     }
 
+    @Override
     public void setLastNickname(String lastNickname) {
         this.lastNickname = lastNickname;
     }
 
-    public boolean isRegistered() {
-        return hashedPassword != null;
+    @Override
+    public Timestamp getJoinDate() {
+        return joinDate;
     }
 
-    public boolean autoLoginEnabled() {
-        return premiumUUID != null;
+    @Override
+    public void setJoinDate(Timestamp joinDate) {
+        this.joinDate = joinDate;
+    }
+
+    @Override
+    public Timestamp getLastSeen() {
+        return lastSeen;
+    }
+
+    @Override
+    public void setLastSeen(Timestamp lastSeen) {
+        this.lastSeen = lastSeen;
+    }
+
+    @Override
+    public String getSecret() {
+        return secret;
+    }
+
+    @Override
+    public void setSecret(String secret) {
+        this.secret = secret;
+    }
+
+    @Override
+    public String getIp() {
+        return ip;
+    }
+
+    @Override
+    public void setIp(String ip) {
+        this.ip = ip;
+    }
+
+    @Override
+    public Timestamp getLastAuthentication() {
+        return lastAuthentication;
+    }
+
+    @Override
+    public void setLastAuthentication(Timestamp lastAuthentication) {
+        this.lastAuthentication = lastAuthentication;
+    }
+
+    @Override
+    public String getLastServer() {
+        return lastServer;
+    }
+
+    @Override
+    public void setLastServer(String lastServer) {
+        this.lastServer = lastServer;
     }
 
     @Override
@@ -122,6 +179,16 @@ public class AuthenticUser implements User {
     }
 
     @Override
+    public boolean isRegistered() {
+        return hashedPassword != null;
+    }
+
+    @Override
+    public boolean autoLoginEnabled() {
+        return premiumUUID != null;
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -132,29 +199,5 @@ public class AuthenticUser implements User {
     @Override
     public int hashCode() {
         return Objects.hash(uuid);
-    }
-
-    public String getSecret() {
-        return secret;
-    }
-
-    public void setSecret(String secret) {
-        this.secret = secret;
-    }
-
-    public String getIp() {
-        return ip;
-    }
-
-    public void setIp(String ip) {
-        this.ip = ip;
-    }
-
-    public String getLastServer() {
-        return lastServer;
-    }
-
-    public void setLastServer(String lastServer) {
-        this.lastServer = lastServer;
     }
 }

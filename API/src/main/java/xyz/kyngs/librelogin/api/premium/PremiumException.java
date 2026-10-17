@@ -6,21 +6,17 @@
 
 package xyz.kyngs.librelogin.api.premium;
 
-/**
- * An exception that is thrown when fetching premium data fails.
- *
- * @author kyngs
- */
+/** Thrown when an error occurs during premium account lookup or Mojang API queries. */
 public class PremiumException extends Exception {
 
-    /** The issue that caused this exception. */
+    /** The classified cause category of this exception. */
     private final Issue issue;
 
     /**
-     * Construct a new PremiumException with the given Issue and Exception.
+     * Constructs a new PremiumException with the specified cause category and underlying exception.
      *
-     * @param issue The issue related to the exception.
-     * @param exception The exception that caused the issue.
+     * @param issue the category of issue that caused the failure
+     * @param exception the underlying cause exception
      */
     public PremiumException(Issue issue, Exception exception) {
         super(exception);
@@ -28,10 +24,10 @@ public class PremiumException extends Exception {
     }
 
     /**
-     * Construct a new PremiumException with the given Issue and message.
+     * Constructs a new PremiumException with the specified cause category and detail message.
      *
-     * @param issue The issue related to the exception.
-     * @param message The message describing the exception.
+     * @param issue the category of issue that caused the failure
+     * @param message the detail explanation message
      */
     public PremiumException(Issue issue, String message) {
         super(message);
@@ -39,21 +35,21 @@ public class PremiumException extends Exception {
     }
 
     /**
-     * Gets the issue that caused this exception.
+     * Gets the classified issue category for this exception.
      *
-     * @return the issue that caused this exception
+     * @return the issue category
      */
     public Issue getIssue() {
         return issue;
     }
 
-    /** Possible issues that can cause this exception. */
+    /** Categories of failure encountered during premium account operations. */
     public enum Issue {
-        /** The API throttled the request. */
+        /** The upstream API rate limit or throttle was exceeded. */
         THROTTLED,
-        /** The API returned an invalid response. */
+        /** The upstream API responded with an error or invalid payload. */
         SERVER_EXCEPTION,
-        /** Other issues. */
+        /** An unclassified or unexpected error occurred. */
         UNDEFINED
     }
 }

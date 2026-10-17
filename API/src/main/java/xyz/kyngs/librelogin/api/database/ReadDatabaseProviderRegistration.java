@@ -11,29 +11,28 @@ import xyz.kyngs.librelogin.api.database.connector.DatabaseConnector;
 import xyz.kyngs.librelogin.api.util.ThrowableFunction;
 
 /**
- * The registration of a read database provider.
+ * Encapsulates the registration metadata and factory for a {@link ReadDatabaseProvider}.
  *
- * @param factory a factory that creates a new instance of the provider
- * @param id the id of the provider, suggested format: "plugin_name-connector_id" (e.g.
- *     "librelogin-mysql", or "authme-sqlite")
- * @param databaseConnector The class of the database connector you wish to use, should match the C
- *     type parameter. If null, no connector will be supplied in {@link #factory}
- * @param <R> The type of the read database provider described by this registration
- * @param <C> The type of the database connector
- * @param <E> The type of the common exception thrown by the database. (e.g. SQLException)
- * @author kyngs
+ * @param factory the factory used to instantiate the provider from a connector
+ * @param id the unique identifier of the provider (e.g. "librelogin-mysql", "authme-sqlite")
+ * @param databaseConnector the connector class required by the factory, or null if no connector is
+ *     needed
+ * @param <R> the provider type
+ * @param <C> the connector type
+ * @param <E> the exception type thrown by the provider during creation
  */
 public record ReadDatabaseProviderRegistration<
         R extends ReadDatabaseProvider, C extends DatabaseConnector<E, ?>, E extends Exception>(
         ThrowableFunction<C, R, E> factory, String id, @Nullable Class<C> databaseConnector) {
 
     /**
-     * Creates an instance of a read database provider using the given database connector.
+     * Creates a new instance of the database provider using the given database connector.
      *
-     * @param connector the database connector to be used
-     * @return the created object
-     * @throws E if an error occurs during the creation process
+     * @param connector the database connector to supply to the factory
+     * @return the instantiated database provider
+     * @throws E if an error occurs during provider instantiation
      */
+    @SuppressWarnings("unchecked")
     public R create(DatabaseConnector<?, ?> connector) throws E {
         return factory.apply((C) connector);
     }

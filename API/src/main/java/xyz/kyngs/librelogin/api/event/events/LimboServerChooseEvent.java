@@ -9,9 +9,10 @@ package xyz.kyngs.librelogin.api.event.events;
 import xyz.kyngs.librelogin.api.event.ServerChooseEvent;
 
 /**
- * Allows you to determine to which limbo player should be sent.
+ * Fired when determining the limbo destination server to route an unauthenticated player to.
  *
- * @author kyngs
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  * @see ServerChooseEvent#setServer
  */
 public interface LimboServerChooseEvent<P, S> extends ServerChooseEvent<P, S> {}

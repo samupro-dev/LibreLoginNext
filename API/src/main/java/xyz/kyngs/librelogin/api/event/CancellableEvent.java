@@ -6,20 +6,20 @@
 
 package xyz.kyngs.librelogin.api.event;
 
-/** This interface is used to mark events that can be cancelled */
+/** Interface for events that can be cancelled to intercept or prevent default processing. */
 public interface CancellableEvent {
 
     /**
-     * Abort this event
+     * Sets the cancellation state of the event.
      *
-     * @param cancelled If set to true, this event will be aborted
+     * @param cancelled true to cancel the event, false otherwise
      */
     void setCancelled(boolean cancelled);
 
     /**
-     * Checks if the event is aborted
+     * Checks whether the event has been marked as cancelled.
      *
-     * @return Whether is the event aborted
+     * @return true if the event is cancelled, false otherwise
      */
     boolean isCancelled();
 }

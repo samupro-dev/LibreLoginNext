@@ -10,11 +10,20 @@ import java.util.logging.Filter;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
+/**
+ * {@link java.util.logging.Logger} implementation of {@link LogFilter} that wraps existing JUL
+ * filters to prevent sensitive authentication commands and credentials from being written to logs.
+ */
 public class SimpleLogFilter extends LogFilter implements Filter {
 
     private final Filter filter;
     private final Logger logger;
 
+    /**
+     * Constructs a new simple log filter preserving any existing logger filter in chain.
+     *
+     * @param logger the java.util.logging logger instance to wrap
+     */
     public SimpleLogFilter(Logger logger) {
         filter = logger.getFilter();
         this.logger = logger;
@@ -30,5 +39,12 @@ public class SimpleLogFilter extends LogFilter implements Filter {
     @Override
     public void inject() {
         logger.setFilter(this);
+    }
+
+    @Override
+    public void remove() {
+        if (logger.getFilter() == this) {
+            logger.setFilter(filter);
+        }
     }
 }

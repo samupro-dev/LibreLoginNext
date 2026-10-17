@@ -7,8 +7,8 @@
 package xyz.kyngs.librelogin.api.server;
 
 /**
- * A record representing a server ping. A server ping consists of the maximum number of players.
+ * Encapsulates status and ping response information for a backend server.
  *
- * @param maxPlayers The maximum number of players.
+ * @param maxPlayers the maximum player capacity reported by the server
  */
 public record ServerPing(int maxPlayers) {}

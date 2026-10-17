@@ -9,47 +9,50 @@ package xyz.kyngs.librelogin.api.event;
 import java.util.function.Consumer;
 
 /**
- * This interface manages events.
+ * Event bus interface managing event registration, dispatch, and listeners.
  *
- * @param <P> The player type
- * @param <S> The server type
- * @author kyngs
+ * <p><b>Threading:</b> handlers may be called on any thread: the server main thread (Paper join),
+ * proxy event threads (Velocity), LibreLogin worker threads or Redis client threads. Handlers must
+ * be thread-safe, and code that touches main-thread-only platform state (for example Bukkit
+ * entities or worlds) must schedule itself onto the main thread.
+ *
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  */
 public interface EventProvider<P, S> {
 
     /**
-     * Returns the event types.
+     * Gets the registry of standard event types.
      *
-     * @return The event types
+     * @return the event types container
      */
     default EventTypes<P, S> getTypes() {
         return new EventTypes<>();
     }
 
     /**
-     * Allows you to subscribe to an event.
+     * Subscribes a listener consumer to an event type.
      *
-     * @param type The type of the event see {@link #getTypes()}
-     * @param handler The handler to call when the event is fired
-     * @param <E> The event type
-     * @return The handler you passed as a parameter, this is useful for unsubscribing
+     * @param type the event type token (see {@link #getTypes()})
+     * @param handler the callback handler to execute when the event fires
+     * @param <E> the event class type
+     * @return the handler instance passed as argument, useful for unsubscribing
      */
     <E extends Event<P, S>> Consumer<E> subscribe(EventType<P, S, E> type, Consumer<E> handler);
 
     /**
-     * Allows you to unsubscribe from an event.
+     * Unsubscribes a previously registered event listener.
      *
-     * @param handler The handler to unsubscribe. Must be the same instance as your handler used in
-     *     {@link #subscribe(EventType, Consumer)}
+     * @param handler the exact handler instance passed to {@link #subscribe(EventType, Consumer)}
      */
     void unsubscribe(Consumer<? extends Event<P, S>> handler);
 
     /**
-     * Allows you to fire an event.
+     * Dispatches and fires an event to all subscribed listeners.
      *
-     * @param type The type of the event see {@link #getTypes()}
-     * @param event The event to fire
-     * @param <E> The event type
+     * @param type the event type token
+     * @param event the event instance being fired
+     * @param <E> the event class type
      */
     <E extends Event<P, S>> void fire(EventType<P, S, E> type, E event);
 }

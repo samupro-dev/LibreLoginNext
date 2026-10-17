@@ -12,9 +12,19 @@ import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import xyz.kyngs.librelogin.paper.PaperListeners;
 
+/**
+ * PacketEvents listener that intercepts login sequence packets (LOGIN_START and
+ * ENCRYPTION_RESPONSE).
+ */
 public class PacketListener extends PacketListenerAbstract {
+
     private final PaperListeners delegate;
 
+    /**
+     * Constructs a new {@link PacketListener}.
+     *
+     * @param delegate the delegate PaperListeners instance to handle packet logic
+     */
     public PacketListener(PaperListeners delegate) {
         super(PacketListenerPriority.HIGHEST);
         this.delegate = delegate;
@@ -22,9 +32,13 @@ public class PacketListener extends PacketListenerAbstract {
 
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
-        if (event.isCancelled()) return;
+        if (event.isCancelled()) {
+            return;
+        }
         if (event.getPacketType() != PacketType.Login.Client.LOGIN_START
-                && event.getPacketType() != PacketType.Login.Client.ENCRYPTION_RESPONSE) return;
+                && event.getPacketType() != PacketType.Login.Client.ENCRYPTION_RESPONSE) {
+            return;
+        }
 
         delegate.onPacketReceive(event);
     }

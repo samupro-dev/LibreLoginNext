@@ -6,50 +6,105 @@
 
 package xyz.kyngs.librelogin.common.log;
 
-import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+/**
+ * Security log filter that intercepts server log records and prevents sensitive credential-bearing
+ * commands (passwords, 2FA tokens, email addresses) from leaking into server logs or console
+ * output.
+ */
 public abstract class LogFilter {
 
-    private static final Set<String> PROTECTED_COMMANDS;
+    private static final Set<String> PROTECTED_ROOT_COMMANDS =
+            Set.of(
+                    "login",
+                    "l",
+                    "register",
+                    "reg",
+                    "premium",
+                    "2fa",
+                    "totp",
+                    "changepassword",
+                    "changepass",
+                    "email",
+                    "unregister",
+                    "cracked");
 
-    static {
-        PROTECTED_COMMANDS = new HashSet<>();
+    private static final Set<String> PROTECTED_SUB_COMMANDS =
+            Set.of(
+                    "librelogin user register",
+                    "librelogin user setpassword",
+                    "librelogin user setemail");
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    // The root also accepts "." and ":" so namespaced forms such as "/librelogin:login" are caught.
+    private static final Pattern COMMAND_PATTERN =
+            Pattern.compile(
+                    "(?i)(?:issued server command:\\s*|executed command:\\s*|executed"
+                            + " command\\s*|command:\\s*)/([a-zA-Z0-9_.:-]+)(?:\\s+(.*))?");
 
-        PROTECTED_COMMANDS.add("login");
-        PROTECTED_COMMANDS.add("l");
-        PROTECTED_COMMANDS.add("log");
-        PROTECTED_COMMANDS.add("register");
-        PROTECTED_COMMANDS.add("reg");
-        PROTECTED_COMMANDS.add("premium");
-        PROTECTED_COMMANDS.add("autologin");
-        PROTECTED_COMMANDS.add("2faconfirm");
-        PROTECTED_COMMANDS.add("changepassword");
-        PROTECTED_COMMANDS.add("changepass");
-        PROTECTED_COMMANDS.add("passch");
-        PROTECTED_COMMANDS.add("passwd");
-        PROTECTED_COMMANDS.add("confirmpasswordreset");
-        PROTECTED_COMMANDS.add("setemail");
-        PROTECTED_COMMANDS.add("librelogin user register");
-        PROTECTED_COMMANDS.add("librelogin user pass-change");
-    }
-
+    /**
+     * Inspects a log message string and determines whether it is safe to be recorded.
+     *
+     * @param message the raw log message text
+     * @return {@code true} if the message is safe and should be logged, {@code false} if it should
+     *     be suppressed
+     */
     protected boolean checkMessage(String message) {
-        // This sucks, but it's the only way to filter out the spam from the plugin
-        if (message.contains(
-                "Plugin listener xyz.kyngs.librelogin.bungeecord.BungeeCordListener took"))
-            return false;
-        if (!message.contains("issued server command: /")
-                && !message.contains("executed command /")
-                && !message.contains("executed command: /")
-                && !message.contains("Duplicate key name")) return true;
+        if (message == null || message.isEmpty()) {
+            return true;
+        }
 
-        for (String command : PROTECTED_COMMANDS) {
-            if (message.contains(command)) return false;
+        // Suppress benign legacy warnings if encountered
+        if (message.contains(
+                        "Plugin listener xyz.kyngs.librelogin.bungeecord.BungeeCordListener took")
+                || message.contains("Duplicate key name")) {
+            return false;
+        }
+
+        // Every server log line passes here: skip the regex unless the line mentions a command.
+        if (message.indexOf("ommand") < 0 && message.indexOf("OMMAND") < 0) {
+            return true;
+        }
+
+        Matcher matcher = COMMAND_PATTERN.matcher(message);
+        if (matcher.find()) {
+            String rootCommand = matcher.group(1).toLowerCase(Locale.ROOT);
+            int namespace = rootCommand.lastIndexOf(':');
+            if (namespace >= 0) {
+                rootCommand = rootCommand.substring(namespace + 1);
+            }
+            if (PROTECTED_ROOT_COMMANDS.contains(rootCommand)) {
+                return false;
+            }
+
+            if (rootCommand.equals("librelogin") || rootCommand.equals("ll")) {
+                String arguments = matcher.group(2);
+                if (arguments != null) {
+                    String lowerArgs =
+                            WHITESPACE
+                                    .matcher(arguments.toLowerCase(Locale.ROOT).trim())
+                                    .replaceAll(" ");
+                    for (String sub : PROTECTED_SUB_COMMANDS) {
+                        if (lowerArgs.startsWith(sub.substring(sub.indexOf(' ') + 1))) {
+                            return false;
+                        }
+                    }
+                }
+            }
         }
 
         return true;
     }
 
+    /** Injects this filter into the underlying platform logging pipeline. */
     public abstract void inject();
+
+    /**
+     * Removes this filter from the platform logging pipeline (on disable, so reloads do not stack
+     * filters or keep the old plugin class loader alive).
+     */
+    public abstract void remove();
 }

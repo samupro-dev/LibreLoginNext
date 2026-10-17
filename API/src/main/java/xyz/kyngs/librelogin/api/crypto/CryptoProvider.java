@@ -8,36 +8,31 @@ package xyz.kyngs.librelogin.api.crypto;
 
 import org.jetbrains.annotations.Nullable;
 
-/**
- * This interface manages passwords for its own algorithm. Each algorithm must implement this
- * interface.
- *
- * @author kyngs
- */
+/** Service provider interface for password hashing and verification algorithms. */
 public interface CryptoProvider {
 
     /**
-     * Creates a {@link HashedPassword} from a password.
+     * Hashes a plaintext password according to this provider's algorithm.
      *
-     * @param password The password (in plaintext).
-     * @return Hashed password or null if hashing failed (e.g. password is too long).
+     * @param password the plaintext password to hash
+     * @return the resulting {@link HashedPassword}, or null if hashing failed
      */
     @Nullable
     HashedPassword createHash(String password);
 
     /**
-     * Verifies a password against a {@link HashedPassword}.
+     * Verifies a plaintext input against an existing stored {@link HashedPassword}.
      *
-     * @param input The password (in plaintext).
-     * @param password The hashed password.
-     * @return True if the password is correct, false otherwise.
+     * @param input the plaintext input to verify
+     * @param password the stored hashed password record
+     * @return true if the password matches the hash, false otherwise
      */
     boolean matches(String input, HashedPassword password);
 
     /**
-     * Gets the name of the algorithm.
+     * Gets the unique identifier of the cryptographic algorithm (e.g. "BCRYPT", "ARGON2ID").
      *
-     * @return The name of the algorithm.
+     * @return the algorithm identifier
      */
     String getIdentifier();
 }

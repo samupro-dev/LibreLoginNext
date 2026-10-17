@@ -6,8 +6,16 @@
 
 package xyz.kyngs.librelogin.common.listener;
 
-import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.Nullable;
 import xyz.kyngs.librelogin.api.database.User;
+import xyz.kyngs.librelogin.lib.adventure.text.Component;
 
-public record PreLoginResult(PreLoginState state, @Nullable Component message, User user) {}
+/**
+ * Encapsulates the evaluation result of a player's pre-login verification handshake.
+ *
+ * @param state the pre-login authorization state indicating encryption mode or denial
+ * @param message the disconnect reason message component if the login is denied
+ * @param user the associated database user entity, or null if unassigned
+ */
+public record PreLoginResult(
+        PreLoginState state, @Nullable Component message, @Nullable User user) {}

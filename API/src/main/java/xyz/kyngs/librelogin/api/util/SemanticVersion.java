@@ -7,37 +7,62 @@
 package xyz.kyngs.librelogin.api.util;
 
 /**
- * A basic record to hold semantic version information.
+ * Representation of a semantic version (major.minor.patch[-SNAPSHOT]).
  *
- * @param major The major version.
- * @param minor The minor version.
- * @param patch The patch version.
- * @param dev Whether this is a development version.
- * @author kyngs
+ * @param major the major version number
+ * @param minor the minor version number
+ * @param patch the patch version number
+ * @param dev whether this is a development (SNAPSHOT) build
  */
-public record SemanticVersion(int major, int minor, int patch, boolean dev) {
+public record SemanticVersion(int major, int minor, int patch, boolean dev)
+        implements Comparable<SemanticVersion> {
 
     /**
-     * Parses a semantic version from a string with format major.minor.patch(-SNAPSHOT)
+     * Parses a semantic version string in the format {@code [v]major.minor.patch[-SNAPSHOT]}.
      *
-     * @param version The string to parse.
-     * @return The parsed semantic version.
+     * @param version the version string to parse
+     * @return the parsed {@link SemanticVersion} instance
      */
     public static SemanticVersion parse(String version) {
-        String[] split = version.replace("-SNAPSHOT", "").split("\\.");
-        return new SemanticVersion(
-                Integer.parseInt(split[0]),
-                Integer.parseInt(split[1]),
-                Integer.parseInt(split[2]),
-                version.endsWith("-SNAPSHOT"));
+        if (version == null || version.isBlank()) {
+            return new SemanticVersion(0, 0, 0, false);
+        }
+        var clean = version.trim();
+        if (clean.startsWith("v") || clean.startsWith("V")) {
+            clean = clean.substring(1);
+        }
+        var isDev =
+                clean.toUpperCase(java.util.Locale.ROOT).contains("SNAPSHOT")
+                        || clean.toUpperCase(java.util.Locale.ROOT).contains("DEV");
+        var baseVersion = clean.split("-")[0];
+        var split = baseVersion.split("\\.");
+        var major = split.length > 0 ? parseSafeInt(split[0]) : 0;
+        var minor = split.length > 1 ? parseSafeInt(split[1]) : 0;
+        var patch = split.length > 2 ? parseSafeInt(split[2]) : 0;
+        return new SemanticVersion(major, minor, patch, isDev);
+    }
+
+    private static int parseSafeInt(String segment) {
+        if (segment == null || segment.isBlank()) return 0;
+        var digits = segment.replaceAll("\\D+", "");
+        if (digits.isEmpty()) return 0;
+        try {
+            return Integer.parseInt(digits);
+        } catch (NumberFormatException e) {
+            return Integer.MAX_VALUE; // more digits than an int holds
+        }
+    }
+
+    @Override
+    public int compareTo(SemanticVersion other) {
+        return compare(other);
     }
 
     /**
-     * Compares this version with the specified version.
+     * Compares this semantic version with another semantic version.
      *
-     * @param other the version to compare to
-     * @return -1 if this version is less than the specified version, 0 if they are equal, and 1 if
-     *     this version is greater
+     * @param other the version to compare against
+     * @return negative if this is older, 0 if equal, positive if this is newer
      */
     public int compare(SemanticVersion other) {
         if (major != other.major) {

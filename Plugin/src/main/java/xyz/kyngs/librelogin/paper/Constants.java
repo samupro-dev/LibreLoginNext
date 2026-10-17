@@ -6,6 +6,10 @@
 
 package xyz.kyngs.librelogin.paper;
 
-public class Constants {
-    public static final Integer BSTATS_ID = 26574;
+/** Paper platform-specific constants. */
+public final class Constants {
+
+    private Constants() {
+        throw new UnsupportedOperationException("Utility class cannot be instantiated");
+    }
 }

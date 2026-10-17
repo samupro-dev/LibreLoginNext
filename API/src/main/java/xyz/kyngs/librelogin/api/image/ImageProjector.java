@@ -9,26 +9,25 @@ package xyz.kyngs.librelogin.api.image;
 import java.awt.image.BufferedImage;
 
 /**
- * This interface is used to project images to the players
+ * Service interface for rendering and projecting image graphics to players.
  *
- * @param <P> The type of the player
+ * @param <P> the platform-specific player type
  */
 public interface ImageProjector<P> {
 
     /**
-     * This method projects an image to the player
+     * Projects a buffered image to the target player.
      *
-     * @param player The player to project the image to
-     * @param image The image to project
+     * @param image the image to project
+     * @param player the player receiving the image
      */
     void project(BufferedImage image, P player);
 
     /**
-     * This method allows the projector to decide, whether the player can have an image projected to
-     * them
+     * Determines whether image projection is supported for and acceptable by the given player.
      *
-     * @param player The player to check
-     * @return Whether the player can have an image projected to them
+     * @param player the player to check
+     * @return true if the player can receive projected images, false otherwise
      */
     boolean canProject(P player);
 }

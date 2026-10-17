@@ -7,8 +7,7 @@
 package xyz.kyngs.librelogin.api.database;
 
 /**
- * This interface is used to read and write to the database.
- *
- * @author kyngs
+ * Composite interface combining {@link ReadDatabaseProvider} and {@link WriteDatabaseProvider} for
+ * comprehensive read/write database operations.
  */
 public interface ReadWriteDatabaseProvider extends ReadDatabaseProvider, WriteDatabaseProvider {}

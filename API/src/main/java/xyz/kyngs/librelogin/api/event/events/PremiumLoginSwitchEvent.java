@@ -9,10 +9,12 @@ package xyz.kyngs.librelogin.api.event.events;
 import xyz.kyngs.librelogin.api.event.PlayerBasedEvent;
 
 /**
- * This event is called <b>after</b> the player switches the mode, this means that {@link
- * #getUser()} should already have the new state However, this event is also called <b>before</b>
- * the user gets saved to the database, so you can override the state.
+ * Fired when a player toggles their premium auto-login setting.
  *
- * @author kyngs
+ * <p>This event is dispatched after the local user state has been updated in memory, but before the
+ * user record is written to the persistent database.
+ *
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  */
 public interface PremiumLoginSwitchEvent<P, S> extends PlayerBasedEvent<P, S> {}

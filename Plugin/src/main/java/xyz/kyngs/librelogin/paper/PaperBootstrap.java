@@ -6,20 +6,35 @@
 
 package xyz.kyngs.librelogin.paper;
 
-import net.byteflux.libby.BukkitLibraryManager;
-import net.byteflux.libby.LibraryManager;
-import net.byteflux.libby.PaperLibraryManager;
+import java.util.logging.Level;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.generator.ChunkGenerator;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import xyz.kyngs.librelogin.api.provider.LibreLoginProvider;
 
+/**
+ * Main Paper plugin bootstrap entry point for LibreLogin.
+ *
+ * <p>Handles world generator hooks and plugin lifecycle initialization. If initialization fails,
+ * the plugin stays enabled in lockdown mode and denies every join: an offline-mode server must
+ * never keep accepting players without authentication.
+ */
+// Lockdown uses the String kick/disallow APIs: the only ones present on every version (1.13+).
+@SuppressWarnings("deprecation")
 public class PaperBootstrap extends JavaPlugin implements LibreLoginProvider<Player, World> {
 
+    private static final String LOCKDOWN_REASON =
+            "Authentication is unavailable on this server. Please contact an administrator.";
+
     private PaperLibreLogin libreLogin;
+    private volatile boolean lockdown;
 
     @Override
     public @Nullable ChunkGenerator getDefaultWorldGenerator(
@@ -29,78 +44,49 @@ public class PaperBootstrap extends JavaPlugin implements LibreLoginProvider<Pla
 
     @Override
     public void onLoad() {
-        getLogger().info("Analyzing server setup...");
-
-        try {
-            var adventureClass = Class.forName("net.kyori.adventure.audience.Audience");
-
-            if (!adventureClass.isAssignableFrom(Player.class)) {
-                throw new ClassNotFoundException();
-            }
-        } catch (ClassNotFoundException e) {
-            unsupportedSetup();
-        }
-
         getLogger()
                 .info(
-                        "Detected Adventure-compatible server distribution - "
+                        "Detected server distribution - "
                                 + getServer().getName()
                                 + " "
-                                + getServer().getVersion());
-
-        LibraryManager libraryManager;
-
-        try {
-            Class.forName("io.papermc.paper.plugin.entrypoint.classloader.PaperPluginClassLoader");
-            libraryManager = new PaperLibraryManager(this);
-        } catch (ClassNotFoundException e) {
-            libraryManager = new BukkitLibraryManager(this);
-        }
-
-        getSLF4JLogger().info("Loading libraries...");
+                                + getServer().getVersion()
+                                + (PaperAdventure.isNative()
+                                        ? ""
+                                        : " (legacy text delivery, no native Adventure)"));
 
         try {
-            libraryManager.configureFromJSON();
-        } catch (Exception e) {
-            getSLF4JLogger()
-                    .error("Failed to load libraries, stopping server to prevent damage", e);
-            stopServer();
+            libreLogin = new PaperLibreLogin(this);
+        } catch (Throwable t) {
+            getLogger().log(Level.SEVERE, "Failed to load LibreLogin Next.", t);
+            libreLogin = null;
         }
-
-        libreLogin = new PaperLibreLogin(this);
     }
 
     @Override
     public void onEnable() {
-        getLogger().info("Bootstrapping LibreLogin...");
-        libreLogin.enable();
-    }
-
-    private void unsupportedSetup() {
-        getLogger().severe("***********************************************************");
-
-        getLogger()
-                .severe(
-                        "Detected an unsupported server distribution. Please use Paper or its"
-                                + " forks. SPIGOT IS NOT SUPPORTED!");
-
-        getLogger().severe("***********************************************************");
-
-        stopServer();
-    }
-
-    private void stopServer() {
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException ignored) {
+        if (libreLogin == null) {
+            enterLockdown(null);
+            return;
         }
 
-        System.exit(1);
+        getLogger().info("Bootstrapping LibreLogin Next...");
+        try {
+            libreLogin.enable();
+        } catch (Throwable t) {
+            enterLockdown(t);
+        }
     }
 
     @Override
     public void onDisable() {
-        libreLogin.disable();
+        if (libreLogin == null) {
+            return;
+        }
+        try {
+            libreLogin.disable();
+        } catch (Throwable t) {
+            getLogger().log(Level.SEVERE, "Error while disabling LibreLogin Next.", t);
+        }
     }
 
     @Override
@@ -108,7 +94,38 @@ public class PaperBootstrap extends JavaPlugin implements LibreLoginProvider<Pla
         return libreLogin;
     }
 
+    /** Disables this plugin via the Bukkit plugin manager. */
     protected void disable() {
-        setEnabled(false);
+        getServer().getPluginManager().disablePlugin(this);
+    }
+
+    /**
+     * Returns whether initialization failed and every join is being denied.
+     *
+     * @return {@code true} in lockdown mode
+     */
+    public boolean isLockdown() {
+        return lockdown;
+    }
+
+    private void enterLockdown(@Nullable Throwable cause) {
+        lockdown = true;
+        getLogger()
+                .log(
+                        Level.SEVERE,
+                        "LibreLogin Next failed to start. LOCKDOWN: every join is denied until the"
+                                + " problem is fixed and the server is restarted.",
+                        cause);
+        getServer().getPluginManager().registerEvents(new LockdownListener(), this);
+        for (Player player : getServer().getOnlinePlayers()) {
+            player.kickPlayer(LOCKDOWN_REASON);
+        }
+    }
+
+    private static final class LockdownListener implements Listener {
+        @EventHandler(priority = EventPriority.LOWEST)
+        public void onPreLogin(AsyncPlayerPreLoginEvent event) {
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, LOCKDOWN_REASON);
+        }
     }
 }

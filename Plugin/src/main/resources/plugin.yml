@@ -1,8 +1,11 @@
 name: "LibreLogin"
-authors: [ "vuxeim", "sapphirecode", "Navio1430", "kyngs" ]
+authors: [ "samupro-dev", "vuxeim", "sapphirecode", "Navio1430", "kyngs" ]
 version: '${version}'
 main: "xyz.kyngs.librelogin.paper.PaperBootstrap"
-api-version: 1.13
+api-version: "1.13"
+
+depend:
+  - packetevents
 
 softdepend:
   - ProtocolLib

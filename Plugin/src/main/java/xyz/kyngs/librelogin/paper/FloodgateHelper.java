@@ -13,17 +13,20 @@ import io.netty.channel.ChannelHandler;
 import io.netty.util.AttributeKey;
 import org.geysermc.floodgate.api.player.FloodgatePlayer;
 
+/** Helper utility for integrating Geyser/Floodgate Bedrock authentication tasks on Paper. */
 public class FloodgateHelper {
 
+    private static final AttributeKey<String> KICK_MESSAGE_ATTRIBUTE =
+            AttributeKey.valueOf("floodgate-kick-message");
+    private static final AttributeKey<FloodgatePlayer> FLOODGATE_PLAYER_ATTRIBUTE =
+            AttributeKey.valueOf("floodgate-player");
+
     /**
-     * Reimplementation of the tasks injected Floodgate in ProtocolLib that are not run due to a bug
+     * Processes Floodgate authentication tasks for an incoming login packet.
      *
-     * @param event the PacketEvent that won't be processed by Floodgate
-     * @return false if the player was kicked
-     * @author games647 and FastLogin contributors
-     * @see <a href="https://github.com/GeyserMC/Floodgate/issues/143">Issue Floodgate#143</a>
-     * @see <a
-     *     href="https://github.com/GeyserMC/Floodgate/blob/5d5713ed9e9eeab0f4abdaa9cf5cd8619dc1909b/spigot/src/main/java/org/geysermc/floodgate/addon/data/SpigotDataHandler.java#L121-L175">Floodgate/SpigotDataHandler</a>
+     * @param event the packet receive event containing connection channel information
+     * @param packet the login start packet wrapper
+     * @return {@code false} if the player connection was closed or kicked; {@code true} otherwise
      */
     protected boolean processFloodgateTasks(
             PacketReceiveEvent event, WrapperLoginClientLoginStart packet) {
@@ -32,31 +35,47 @@ public class FloodgateHelper {
             return true;
         }
 
-        // kick the player, if necessary
-        Channel channel = (Channel) event.getChannel();
-        AttributeKey<String> kickMessageAttribute = AttributeKey.valueOf("floodgate-kick-message");
-        String kickMessage = channel.attr(kickMessageAttribute).get();
+        if (!(event.getChannel() instanceof Channel channel)) {
+            return true;
+        }
+
+        String kickMessage = channel.attr(KICK_MESSAGE_ATTRIBUTE).get();
         if (kickMessage != null) {
             event.getUser().closeConnection();
             return false;
         }
 
-        // add prefix
         String username = floodgatePlayer.getCorrectUsername();
         packet.setUsername(username);
 
-        // remove real Floodgate data handler
         ChannelHandler floodgateHandler = channel.pipeline().get("floodgate_data_handler");
-        channel.pipeline().remove(floodgateHandler);
+        if (floodgateHandler != null) {
+            channel.pipeline().remove(floodgateHandler);
+        }
 
         return true;
     }
 
     /**
-     * @author games647 and FastLogin contributors
+     * Returns whether this connection was authenticated by Floodgate.
+     *
+     * @param channel the Netty channel object
+     * @return {@code true} if the channel carries a Floodgate player
+     */
+    protected boolean isFloodgateConnection(Object channel) {
+        return getFloodgatePlayer(channel) != null;
+    }
+
+    /**
+     * Retrieves the {@link FloodgatePlayer} attached to the channel attributes.
+     *
+     * @param channel the Netty channel object
+     * @return the associated {@link FloodgatePlayer}, or {@code null} if absent
      */
     private FloodgatePlayer getFloodgatePlayer(Object channel) {
-        AttributeKey<FloodgatePlayer> floodgateAttribute = AttributeKey.valueOf("floodgate-player");
-        return ((Channel) channel).attr(floodgateAttribute).get();
+        if (!(channel instanceof Channel nettyChannel)) {
+            return null;
+        }
+        return nettyChannel.attr(FLOODGATE_PLAYER_ATTRIBUTE).get();
     }
 }

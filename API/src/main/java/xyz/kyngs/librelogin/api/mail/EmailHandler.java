@@ -6,45 +6,41 @@
 
 package xyz.kyngs.librelogin.api.mail;
 
-/**
- * This interface is used to send emails to the users.
- *
- * @author kyngs
- */
+/** Service interface for sending transactional emails. */
 public interface EmailHandler {
 
     /**
-     * This method sends an email to the user.
+     * Sends an email with arbitrary content to the specified recipient.
      *
-     * @param email The email to send the email to.
-     * @param subject The subject of the email.
-     * @param content The content of the email.
+     * @param email the recipient email address
+     * @param subject the email subject line
+     * @param content the body content of the email
      */
     void sendEmail(String email, String subject, String content);
 
     /**
-     * This method sends a test email to the user.
+     * Sends a test connectivity email to the specified recipient.
      *
-     * @param email The email to send the email to.
+     * @param email the recipient email address
      */
     void sendTestMail(String email);
 
     /**
-     * This method sends a password reset email to the user.
+     * Sends a password reset notification email containing a security token.
      *
-     * @param email The email to send the email to.
-     * @param token The token to reset the password.
-     * @param ip The ip of the user.
-     * @param username The username of the user.
+     * @param email the recipient email address
+     * @param token the security token for password reset verification
+     * @param username the username of the account requesting the reset
+     * @param ip the remote IP address that requested the reset
      */
     void sendPasswordResetMail(String email, String token, String username, String ip);
 
     /**
-     * This method sends a verification email to the user.
+     * Sends an email address verification request containing an activation token.
      *
-     * @param email The email to send the email to.
-     * @param token The token to verify the email.
-     * @param username The username of the user.
+     * @param email the recipient email address to verify
+     * @param token the email confirmation token
+     * @param username the username of the account being linked
      */
     void sendVerificationMail(String email, String token, String username);
 }

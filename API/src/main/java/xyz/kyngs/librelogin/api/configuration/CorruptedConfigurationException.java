@@ -6,24 +6,20 @@
 
 package xyz.kyngs.librelogin.api.configuration;
 
-/**
- * This exception is thrown when the configuration is corrupted.
- *
- * @author kyngs
- */
+/** Thrown when a configuration file cannot be parsed or contains invalid syntax/structures. */
 public class CorruptedConfigurationException extends Exception {
 
     /**
-     * Creates a new instance of CorruptedConfigurationException with the specified cause.
+     * Constructs a new exception with the specified cause.
      *
-     * @param cause the {@link Throwable} cause of the exception
+     * @param cause the underlying cause
      */
     public CorruptedConfigurationException(Throwable cause) {
         super(cause);
     }
 
     /**
-     * Creates a new instance of CorruptedConfigurationException with the specified detail message.
+     * Constructs a new exception with the specified detail message.
      *
      * @param message the detail message
      */

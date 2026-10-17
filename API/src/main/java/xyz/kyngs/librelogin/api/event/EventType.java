@@ -9,11 +9,11 @@ package xyz.kyngs.librelogin.api.event;
 import java.util.Objects;
 
 /**
- * This class represents an event type.
+ * Type token identifying a specific event class for subscription and dispatch.
  *
- * @param <P> The player type
- * @param <S> The server type
- * @param <E> The event type
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
+ * @param <E> the event class type
  */
 public class EventType<P, S, E extends Event<P, S>> {
 
@@ -24,9 +24,9 @@ public class EventType<P, S, E extends Event<P, S>> {
     }
 
     /**
-     * Returns the event class.
+     * Gets the runtime event class represented by this type token.
      *
-     * @return The event class
+     * @return the event class
      */
     public Class<?> getClazz() {
         return clazz;

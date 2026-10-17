@@ -13,87 +13,102 @@ import xyz.kyngs.librelogin.api.database.User;
 import xyz.kyngs.librelogin.api.event.exception.EventCancelledException;
 
 /**
- * An interface which manages lobby and limbo servers.
+ * Service managing destination routing, server selection, and lobby/limbo registries.
  *
- * @param <S> The type of the server
- * @param <P> The type of the player
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  */
 public interface ServerHandler<P, S> {
 
     /**
-     * Gets the latest ping of the server, returns null if the server is not online. Can block if
-     * the server has not yet been pinged.
+     * Retrieves the latest cached or polled ping information for a server.
      *
-     * @param server The server to ping
-     * @return The data of the server, or null if the server is not online
+     * @param server the server instance to ping
+     * @return the {@link ServerPing} status data, or null if offline/unavailable
      */
     ServerPing getLatestPing(S server);
 
     /**
-     * Chooses an optimal lobby server to connect the player to. Usually the one with the lowest
-     * player count.
+     * Selects an optimal lobby server to route the player to based on load balancing and routing
+     * rules.
      *
-     * @param user The user of the player, or null if the player is from bedrock
-     * @param player The player we're choosing the server for
-     * @param remember Whether to respect the remember last server option
-     * @param fallback Whether to select fallback server or not
-     * @throws xyz.kyngs.librelogin.api.event.exception.EventCancelledException If lobby choose
-     *     event is cancelled
-     * @return An optimal lobby server, or null if there are no lobby servers
+     * @param user the user database profile, or null if unavailable
+     * @param player the player being routed
+     * @param remember whether to respect the 'remember last server' setting
+     * @param fallback whether this selection is for a fallback destination (e.g. after a kick)
+     * @return the selected lobby server instance, or null if no candidate server is available
+     * @throws EventCancelledException if the lobby selection event is cancelled by a listener
      */
     S chooseLobbyServer(@Nullable User user, P player, boolean remember, boolean fallback)
             throws EventCancelledException;
 
     /**
-     * Chooses an optimal lobby server to connect the player to. Usually the one with the lowest
-     * player count.
+     * Selects an optimal lobby server to route the player to based on load balancing and routing
+     * rules.
      *
-     * @param user The user of the player, or null if the player is from bedrock
-     * @param player The player we're choosing the server for
-     * @param remember Whether to respect the remember last server option
-     * @throws xyz.kyngs.librelogin.api.event.exception.EventCancelledException If lobby choose
-     *     event is cancelled
-     * @return An optimal lobby server, or null if there are no lobby servers
+     * @param user the user database profile, or null if unavailable
+     * @param player the player being routed
+     * @param remember whether to respect the 'remember last server' setting
+     * @return the selected lobby server instance, or null if no candidate server is available
+     * @throws EventCancelledException if the lobby selection event is cancelled by a listener
      */
     S chooseLobbyServer(@Nullable User user, P player, boolean remember)
             throws EventCancelledException;
 
     /**
-     * Chooses an optimal limbo server to connect the player to. Usually the one with the lowest
-     * player count.
+     * Selects an optimal limbo server for an unauthenticated player.
      *
-     * @param user The user of the player
-     * @param player The player we're choosing the server for
-     * @return An optimal limbo server, or null if there are no limbo servers
+     * @param user the user database profile
+     * @param player the player being routed
+     * @return the selected limbo server instance, or null if no candidate server is available
      */
     S chooseLimboServer(User user, P player);
 
     /**
-     * Gets the lobby servers.
+     * Gets the multimap of registered lobby servers grouped by host key.
      *
-     * @return The lobby servers
+     * <p>Uses Guava's {@link Multimap}, which Paper and Velocity both provide at runtime. Prefer
+     * {@link #getLobbyServerMap()} to avoid depending on Guava.
+     *
+     * @return multimap of forced hosts to lobby server instances
      */
     Multimap<String, S> getLobbyServers();
 
     /**
-     * Gets the limbo servers.
+     * Gets an immutable snapshot of the registered lobby servers grouped by host key, without
+     * exposing Guava types.
      *
-     * @return The limbo servers
+     * @return map of forced hosts to lobby server instances
+     */
+    default java.util.Map<String, java.util.Collection<S>> getLobbyServerMap() {
+        var lobbies = getLobbyServers();
+        synchronized (lobbies) {
+            var copy = new java.util.LinkedHashMap<String, java.util.Collection<S>>();
+            lobbies.asMap()
+                    .forEach((host, servers) -> copy.put(host, java.util.List.copyOf(servers)));
+            return java.util.Collections.unmodifiableMap(copy);
+        }
+    }
+
+    /**
+     * Gets the collection of registered limbo servers.
+     *
+     * @return collection of limbo server instances
      */
     Collection<S> getLimboServers();
 
     /**
-     * Registers a new lobby server.
+     * Registers a new lobby server associated with a specific forced host.
      *
-     * @param server The server to register
-     * @param forcedHost The forced host
+     * @param server the server instance to register as a lobby
+     * @param forcedHost the virtual host key to associate the lobby with
      */
     void registerLobbyServer(S server, String forcedHost);
 
     /**
-     * Registers a new lobby server.
+     * Registers a new default lobby server associated with the root host.
      *
-     * @param server The server to register
+     * @param server the server instance to register as a lobby
      */
     default void registerLobbyServer(S server) {
         registerLobbyServer(server, "root");
@@ -102,7 +117,7 @@ public interface ServerHandler<P, S> {
     /**
      * Registers a new limbo server.
      *
-     * @param server The server to register
+     * @param server the server instance to register as a limbo
      */
     void registerLimboServer(S server);
 }

@@ -9,32 +9,32 @@ package xyz.kyngs.librelogin.api.event.events;
 import xyz.kyngs.librelogin.api.event.PlayerBasedEvent;
 
 /**
- * This event is called after the player has authenticated Note, that this event will both be called
- * if the player has authenticated manually, or automatically. Use {@link #getReason()} to check the
- * reason for authentication.
+ * Fired after a player has successfully authenticated, whether manually or automatically.
  *
- * @author kyngs
+ * @param <P> the platform-specific player type
+ * @param <S> the platform-specific server type
  */
 public interface AuthenticatedEvent<P, S> extends PlayerBasedEvent<P, S> {
 
     /**
-     * Gets the reason for authentication.
+     * Gets the reason or pathway through which the player authenticated.
      *
-     * @return The reason for authentication
+     * @return the authentication reason
      */
     AuthenticationReason getReason();
 
-    /** Possible reasons for authentication. */
+    /** Enumerates the possible causes for successful player authentication. */
     enum AuthenticationReason {
-        /** The player has used the /login command, or they've been logged in by an admin */
-        LOGIN,
-        /** The player has registered */
-        REGISTER,
         /**
-         * The player has been logged in automatically due to having enabled the auto-login feature
+         * The player authenticated manually using the login command or was logged in by an
+         * administrator.
          */
+        LOGIN,
+        /** The player completed account registration. */
+        REGISTER,
+        /** The player was automatically authenticated via Mojang premium verification. */
         PREMIUM,
-        /** The player has been logged in due to having a valid session */
+        /** The player was authenticated automatically via an existing active session. */
         SESSION
     }
 }

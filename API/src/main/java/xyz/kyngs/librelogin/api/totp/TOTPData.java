@@ -9,9 +9,9 @@ package xyz.kyngs.librelogin.api.totp;
 import java.awt.image.BufferedImage;
 
 /**
- * A basic record to hold TOTP data.
+ * Encapsulates generated TOTP enrollment data including a visual QR code image and raw secret key.
  *
- * @param qr The QR code of the TOTP.
- * @param secret The secret of the TOTP.
+ * @param qr the rendered QR code image containing the OTPAuth URI
+ * @param secret the base32 secret key string
  */
 public record TOTPData(BufferedImage qr, String secret) {}
