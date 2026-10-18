@@ -102,7 +102,7 @@ Connect multiple Velocity proxies into one unified network with instant cache up
 ## Installation
 
 ### Velocity (network)
-1. Download the latest LibreLogin Next jar from [Modrinth](https://modrinth.com/mod/librelogin-next) or [build it yourself](#building-from-source).
+1. Download the latest LibreLogin Next jar from [Modrinth](https://modrinth.com/plugin/librelogin-next) or [build it yourself](#building-from-source).
 2. Put the jar in the proxy's `plugins/` folder — **do not** install it on the backend servers. Add [Protocolize](https://github.com/Exceptionflug/protocolize) to enable in-game 2FA QR maps.
 3. Start the proxy once to generate the configuration.
 4. Set the `limbo` server(s) where players authenticate and the `lobby` servers they are sent to afterwards.
@@ -111,7 +111,7 @@ Connect multiple Velocity proxies into one unified network with instant cache up
 
 ### Paper (standalone server)
 1. Install [PacketEvents](https://modrinth.com/plugin/packetevents) in `plugins/`.
-2. Download LibreLogin Next from [Modrinth](https://modrinth.com/mod/librelogin-next).
+2. Download LibreLogin Next from [Modrinth](https://modrinth.com/plugin/librelogin-next).
 3. Drop the LibreLogin Next jar in `plugins/` and start the server once.
 4. Edit `plugins/LibreLogin/config.conf`, then run `/librelogin reload`.
 
