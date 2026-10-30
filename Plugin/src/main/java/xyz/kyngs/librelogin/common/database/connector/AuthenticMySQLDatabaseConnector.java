@@ -42,6 +42,10 @@ public class AuthenticMySQLDatabaseConnector
         hikariConfig.addDataSourceProperty("cachePrepStmts", "true");
         hikariConfig.addDataSourceProperty("prepStmtCacheSize", "250");
         hikariConfig.addDataSourceProperty("useServerPrepStmts", "true");
+        // MariaDB Connector/J 4 defaults to sslMode=verify-full; keep the configured mode explicit.
+        var sslMode = get(Configuration.SSL_MODE);
+        hikariConfig.addDataSourceProperty(
+                "sslMode", sslMode == null || sslMode.isBlank() ? "disable" : sslMode);
         hikariConfig.setUsername(get(Configuration.USER));
         hikariConfig.setPassword(get(Configuration.PASSWORD));
         hikariConfig.setJdbcUrl(
@@ -148,6 +152,14 @@ public class AuthenticMySQLDatabaseConnector
                         "jdbc:mariadb://%host%:%port%/%database%",
                         "The JDBC URL of the database. Don't touch this if you don't know what"
                                 + " you're doing. (Using jdbc:mariadb also works for pure mysql)",
+                        ConfigurateHelper::getString);
+
+        public static final ConfigurationKey<String> SSL_MODE =
+                new ConfigurationKey<>(
+                        "sslmode",
+                        "disable",
+                        "The SSL mode of the MySQL/MariaDB connection (disable, trust, verify-ca,"
+                                + " verify-full or allow).",
                         ConfigurateHelper::getString);
 
         public static final ConfigurationKey<Integer> POOL_SIZE =

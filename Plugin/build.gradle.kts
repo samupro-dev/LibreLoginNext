@@ -117,17 +117,17 @@ dependencies {
     implementation(project(":API"))
 
     // Velocity (annotation processor generates velocity-plugin.json)
-    annotationProcessor("com.velocitypowered:velocity-api:4.1.0-SNAPSHOT")
-    compileOnly("com.velocitypowered:velocity-api:4.1.0-SNAPSHOT")
+    annotationProcessor("com.velocitypowered:velocity-api:4.3.1")
+    compileOnly("com.velocitypowered:velocity-api:4.3.1")
 
     // Redis client, relocated in :Lettuce together with its own Netty and Reactor
     implementation(project(path = ":Lettuce", configuration = "relocated"))
 
     // Databases
     implementation("com.zaxxer:HikariCP:7.1.0")
-    implementation("org.mariadb.jdbc:mariadb-java-client:3.5.10")
+    implementation("org.mariadb.jdbc:mariadb-java-client:4.0.0")
     implementation("org.postgresql:postgresql:42.7.14")
-    implementation("org.xerial:sqlite-jdbc:3.53.4.0")
+    implementation("org.xerial:sqlite-jdbc:3.54.1.0")
 
     // Command framework
     implementation("co.aikar:acf-velocity:0.5.1-SNAPSHOT")
@@ -151,7 +151,7 @@ dependencies {
     compileOnly("com.google.guava:guava:32.1.3-jre")
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     compileOnly("com.github.retrooper:packetevents-spigot:2.14.0")
-    compileOnly("dev.simplix:protocolize-api:2.4.2")
+    compileOnly("dev.simplix:protocolize-api:2.4.3")
     compileOnly("org.geysermc.floodgate:api:2.2.5-SNAPSHOT")
     compileOnly("net.luckperms:api:5.5")
     compileOnly("org.apache.logging.log4j:log4j-core:2.26.1")
@@ -161,7 +161,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     // Reference data for the map packet ID tests
-    testImplementation("dev.simplix:protocolize-api:2.4.2")
+    testImplementation("dev.simplix:protocolize-api:2.4.3")
     testImplementation("com.github.retrooper:packetevents-spigot:2.14.0")
     // Platform-provided libraries; Gson 2.8.0 is the oldest version shipped by a supported server
     testRuntimeOnly("com.google.guava:guava:32.1.3-jre")

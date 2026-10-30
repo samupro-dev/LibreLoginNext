@@ -124,7 +124,7 @@ import xyz.kyngs.librelogin.common.totp.AuthenticTOTPProvider;
 import xyz.kyngs.librelogin.common.util.CancellableTask;
 import xyz.kyngs.librelogin.common.util.CryptoUtil;
 import xyz.kyngs.librelogin.common.util.GeneralUtil;
-import xyz.kyngs.librelogin.common.util.ModrinthUpdateChecker;
+import xyz.kyngs.librelogin.common.util.GitHubUpdateChecker;
 import xyz.kyngs.librelogin.lib.adventure.audience.Audience;
 
 /**
@@ -608,7 +608,7 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
         }
 
         if (configuration.get(CHECK_FOR_UPDATES)) {
-            delay(() -> ModrinthUpdateChecker.check(logger, getVersion()), 1000);
+            delay(() -> GitHubUpdateChecker.check(logger, getVersion()), 1000);
         }
 
         if (pluginPresent("floodgate")) {

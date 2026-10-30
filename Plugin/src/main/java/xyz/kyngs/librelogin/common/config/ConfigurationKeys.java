@@ -613,7 +613,7 @@ public final class ConfigurationKeys {
                     "check-for-updates",
                     true,
                     """
-                    Check Modrinth for newer versions (release, beta and alpha) on startup.
+                    Check GitHub for newer releases (pre-releases included) on startup.
                     """,
                     ConfigurateHelper::getBoolean);
 
