@@ -55,97 +55,91 @@ public class LoginCommand<P> extends AuthorizationCommand<P> {
     @CommandCompletion("%autocomplete.login")
     public CompletionStage<Void> onLogin(
             Audience sender, @Single String password, @Optional String code) {
-        return runAsync(
-                () -> {
-                    var player = getPlayer(sender);
-                    checkUnauthorized(player);
-                    var user = getUser(player);
-                    if (!user.isRegistered()) {
-                        throw new InvalidCommandArgument(getMessage("error.not-registered"));
+        return runAsync(() -> {
+            var player = getPlayer(sender);
+            checkUnauthorized(player);
+            var user = getUser(player);
+            if (!user.isRegistered()) {
+                throw new InvalidCommandArgument(getMessage("error.not-registered"));
+            }
+
+            var locked = plugin.getLoginTryListener().remainingLockoutSeconds(user.getUuid());
+            if (locked > 0) {
+                throw new InvalidCommandArgument(
+                        getMessage("error.login-locked", "%seconds%", String.valueOf(locked)));
+            }
+
+            if (!getMessages().isEmpty("info.logging-in")) {
+                sender.sendMessage(getMessage("info.logging-in"));
+            }
+
+            var hashed = user.getHashedPassword();
+            var crypto = getCrypto(hashed);
+
+            if (crypto == null) {
+                throw new InvalidCommandArgument(getMessage("error.password-corrupted"));
+            }
+
+            if (!crypto.matches(password, hashed)) {
+                plugin.getEventProvider()
+                        .unsafeFire(
+                                plugin.getEventTypes().wrongPassword,
+                                new AuthenticWrongPasswordEvent<>(
+                                        user, player, plugin, AuthenticationSource.LOGIN));
+                throw new InvalidCommandArgument(getMessage("error.password-wrong"));
+            }
+
+            var secret = user.getSecret();
+
+            if (secret != null) {
+                var totp = plugin.getTOTPProvider();
+
+                if (totp == null) {
+                    // Never fall back to password-only for an account that enabled 2FA.
+                    plugin.getLogger()
+                            .error(
+                                    "User "
+                                            + user.getLastNickname()
+                                            + " has 2FA enabled but TOTP is unavailable"
+                                            + " (totp.enabled=false?); refusing login.");
+                    throw new InvalidCommandArgument(getMessage("totp.unavailable"));
+                } else {
+                    if (code == null) {
+                        throw new InvalidCommandArgument(getMessage("totp.not-provided"));
                     }
 
-                    var locked =
-                            plugin.getLoginTryListener().remainingLockoutSeconds(user.getUuid());
-                    if (locked > 0) {
-                        throw new InvalidCommandArgument(
-                                getMessage(
-                                        "error.login-locked", "%seconds%", String.valueOf(locked)));
+                    int parsedCode;
+
+                    try {
+                        parsedCode = Integer.parseInt(code.trim().replace(" ", ""));
+                    } catch (NumberFormatException e) {
+                        throw new InvalidCommandArgument(getMessage("totp.wrong"));
                     }
 
-                    if (!getMessages().isEmpty("info.logging-in")) {
-                        sender.sendMessage(getMessage("info.logging-in"));
-                    }
-
-                    var hashed = user.getHashedPassword();
-                    var crypto = getCrypto(hashed);
-
-                    if (crypto == null) {
-                        throw new InvalidCommandArgument(getMessage("error.password-corrupted"));
-                    }
-
-                    if (!crypto.matches(password, hashed)) {
+                    if (!totp.verify(parsedCode, secret)) {
                         plugin.getEventProvider()
                                 .unsafeFire(
                                         plugin.getEventTypes().wrongPassword,
                                         new AuthenticWrongPasswordEvent<>(
-                                                user, player, plugin, AuthenticationSource.LOGIN));
-                        throw new InvalidCommandArgument(getMessage("error.password-wrong"));
+                                                user, player, plugin, AuthenticationSource.TOTP));
+                        throw new InvalidCommandArgument(getMessage("totp.wrong"));
                     }
+                }
+            }
 
-                    var secret = user.getSecret();
+            if (crypto instanceof VerifyOnlyCryptoProvider) {
+                // Imported legacy hash: upgrade it; authorize() persists the user.
+                var upgraded = plugin.getDefaultCryptoProvider().createHash(password);
+                if (upgraded != null) {
+                    user.setHashedPassword(upgraded);
+                }
+            }
 
-                    if (secret != null) {
-                        var totp = plugin.getTOTPProvider();
-
-                        if (totp == null) {
-                            // Never fall back to password-only for an account that enabled 2FA.
-                            plugin.getLogger()
-                                    .error(
-                                            "User "
-                                                    + user.getLastNickname()
-                                                    + " has 2FA enabled but TOTP is unavailable"
-                                                    + " (totp.enabled=false?); refusing login.");
-                            throw new InvalidCommandArgument(getMessage("totp.unavailable"));
-                        } else {
-                            if (code == null) {
-                                throw new InvalidCommandArgument(getMessage("totp.not-provided"));
-                            }
-
-                            int parsedCode;
-
-                            try {
-                                parsedCode = Integer.parseInt(code.trim().replace(" ", ""));
-                            } catch (NumberFormatException e) {
-                                throw new InvalidCommandArgument(getMessage("totp.wrong"));
-                            }
-
-                            if (!totp.verify(parsedCode, secret)) {
-                                plugin.getEventProvider()
-                                        .unsafeFire(
-                                                plugin.getEventTypes().wrongPassword,
-                                                new AuthenticWrongPasswordEvent<>(
-                                                        user,
-                                                        player,
-                                                        plugin,
-                                                        AuthenticationSource.TOTP));
-                                throw new InvalidCommandArgument(getMessage("totp.wrong"));
-                            }
-                        }
-                    }
-
-                    if (crypto instanceof VerifyOnlyCryptoProvider) {
-                        // Imported legacy hash: upgrade it; authorize() persists the user.
-                        var upgraded = plugin.getDefaultCryptoProvider().createHash(password);
-                        if (upgraded != null) {
-                            user.setHashedPassword(upgraded);
-                        }
-                    }
-
-                    if (!getMessages().isEmpty("info.logged-in")) {
-                        sender.sendMessage(getMessage("info.logged-in"));
-                    }
-                    getAuthorizationProvider()
-                            .authorize(user, player, AuthenticatedEvent.AuthenticationReason.LOGIN);
-                });
+            if (!getMessages().isEmpty("info.logged-in")) {
+                sender.sendMessage(getMessage("info.logged-in"));
+            }
+            getAuthorizationProvider()
+                    .authorize(user, player, AuthenticatedEvent.AuthenticationReason.LOGIN);
+        });
     }
 }

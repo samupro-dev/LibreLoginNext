@@ -38,7 +38,7 @@ import xyz.kyngs.librelogin.common.ShutdownException;
         dependencies = {
             @Dependency(id = "floodgate", optional = true),
             @Dependency(id = "luckperms", optional = true),
-            @Dependency(id = "protocolize", optional = true)
+            @Dependency(id = "packetevents", optional = true)
         })
 public class VelocityBootstrap implements LibreLoginProvider<Player, RegisteredServer> {
 

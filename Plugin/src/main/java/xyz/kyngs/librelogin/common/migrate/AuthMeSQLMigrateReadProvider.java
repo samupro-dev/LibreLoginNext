@@ -69,112 +69,98 @@ public class AuthMeSQLMigrateReadProvider extends SQLMigrateReadProvider {
 
     @Override
     public Collection<User> getAllUsers() {
-        return connector.runQuery(
-                connection -> {
-                    try (var ps =
-                                    connection.prepareStatement(
-                                            "SELECT * FROM " + getEscapedTableName());
-                            var rs = ps.executeQuery()) {
-                        var users = new HashSet<User>();
-                        var locked = new ArrayList<String>();
-                        var nameless = 0;
+        return connector.runQuery(connection -> {
+            try (var ps = connection.prepareStatement("SELECT * FROM " + getEscapedTableName());
+                    var rs = ps.executeQuery()) {
+                var users = new HashSet<User>();
+                var locked = new ArrayList<String>();
+                var nameless = 0;
 
-                        while (rs.next()) {
-                            String nickname = null;
-                            try {
-                                nickname = getOptionalString(rs, "realname");
-                                if (nickname == null || nickname.isEmpty()) {
-                                    nickname = getOptionalString(rs, "username");
-                                }
+                while (rs.next()) {
+                    String nickname = null;
+                    try {
+                        nickname = getOptionalString(rs, "realname");
+                        if (nickname == null || nickname.isEmpty()) {
+                            nickname = getOptionalString(rs, "username");
+                        }
 
-                                if (nickname == null || nickname.isEmpty()) {
-                                    nameless++;
-                                    continue;
-                                }
+                        if (nickname == null || nickname.isEmpty()) {
+                            nameless++;
+                            continue;
+                        }
 
-                                var passwordRaw = getOptionalString(rs, "password");
-                                var lastSeen = getOptionalTimestamp(rs, "lastlogin");
-                                var firstSeen = getOptionalTimestamp(rs, "regdate");
-                                var ip = getOptionalString(rs, "ip");
-                                var email = getOptionalString(rs, "email");
-                                var totpSecret = getOptionalString(rs, "totp");
+                        var passwordRaw = getOptionalString(rs, "password");
+                        var lastSeen = getOptionalTimestamp(rs, "lastlogin");
+                        var firstSeen = getOptionalTimestamp(rs, "regdate");
+                        var ip = getOptionalString(rs, "ip");
+                        var email = getOptionalString(rs, "email");
+                        var totpSecret = getOptionalString(rs, "totp");
 
-                                HashedPassword password = null;
+                        HashedPassword password = null;
 
-                                if (passwordRaw != null && !passwordRaw.isEmpty()) {
-                                    if (passwordRaw.startsWith("$2a$")
-                                            || passwordRaw.startsWith("$2y$")
-                                            || passwordRaw.startsWith("$2b$")) {
-                                        password =
-                                                new HashedPassword(passwordRaw, null, "BCrypt-2A");
-                                    } else if (passwordRaw.startsWith("$argon2")) {
-                                        password =
-                                                new HashedPassword(passwordRaw, null, "Argon-2ID");
-                                    } else {
-                                        // AuthMe's default SHA256 ($SHA$salt$hash), verified by the
-                                        // verify-only SHA-256 provider and re-hashed on next login.
-                                        password =
-                                                LegacyHashNormalizer.fromAuthMeSha256(passwordRaw);
-                                    }
+                        if (passwordRaw != null && !passwordRaw.isEmpty()) {
+                            if (passwordRaw.startsWith("$2a$")
+                                    || passwordRaw.startsWith("$2y$")
+                                    || passwordRaw.startsWith("$2b$")) {
+                                password = new HashedPassword(passwordRaw, null, "BCrypt-2A");
+                            } else if (passwordRaw.startsWith("$argon2")) {
+                                password = new HashedPassword(passwordRaw, null, "Argon-2ID");
+                            } else {
+                                // AuthMe's default SHA256 ($SHA$salt$hash), verified by the
+                                // verify-only SHA-256 provider and re-hashed on next login.
+                                password = LegacyHashNormalizer.fromAuthMeSha256(passwordRaw);
+                            }
 
-                                    if (password == null) {
-                                        // Importing this row without its password would let anyone
-                                        // /register the name and take over the account: lock it.
-                                        password = locked(passwordRaw);
-                                        locked.add(nickname);
-                                    }
-                                }
-
-                                if (email != null
-                                        && (email.isBlank()
-                                                || AUTHME_NO_EMAIL.equalsIgnoreCase(
-                                                        email.trim()))) {
-                                    // AuthMe's "no email" placeholder must not receive reset
-                                    // tokens.
-                                    email = null;
-                                }
-
-                                users.add(
-                                        new AuthenticUser(
-                                                GeneralUtil.getCrackedUUIDFromName(nickname),
-                                                null,
-                                                password,
-                                                nickname,
-                                                firstSeen,
-                                                lastSeen,
-                                                totpSecret,
-                                                ip,
-                                                null,
-                                                null,
-                                                email));
-
-                            } catch (Exception e) {
-                                if (nickname == null || nickname.isEmpty()) {
-                                    logger.error(
-                                            "Failed to read a nameless AuthMe row; omitting it.",
-                                            e);
-                                    nameless++;
-                                    continue;
-                                }
-                                logger.error(
-                                        "Failed to read AuthMe user "
-                                                + nickname
-                                                + "; importing it locked.",
-                                        e);
-                                users.add(
-                                        lockedUser(
-                                                GeneralUtil.getCrackedUUIDFromName(nickname),
-                                                nickname));
+                            if (password == null) {
+                                // Importing this row without its password would let anyone
+                                // /register the name and take over the account: lock it.
+                                password = locked(passwordRaw);
                                 locked.add(nickname);
                             }
                         }
 
-                        // Supported: $SHA$, BCrypt, Argon2.
-                        warnLocked("AuthMe", locked);
-                        warnSkipped(
-                                "AuthMe", nameless, "no player name (the UUID is derived from it)");
-                        return users;
+                        if (email != null
+                                && (email.isBlank()
+                                        || AUTHME_NO_EMAIL.equalsIgnoreCase(email.trim()))) {
+                            // AuthMe's "no email" placeholder must not receive reset
+                            // tokens.
+                            email = null;
+                        }
+
+                        users.add(
+                                new AuthenticUser(
+                                        GeneralUtil.getCrackedUUIDFromName(nickname),
+                                        null,
+                                        password,
+                                        nickname,
+                                        firstSeen,
+                                        lastSeen,
+                                        totpSecret,
+                                        ip,
+                                        null,
+                                        null,
+                                        email));
+
+                    } catch (Exception e) {
+                        if (nickname == null || nickname.isEmpty()) {
+                            logger.error("Failed to read a nameless AuthMe row; omitting it.", e);
+                            nameless++;
+                            continue;
+                        }
+                        logger.error(
+                                "Failed to read AuthMe user " + nickname + "; importing it locked.",
+                                e);
+                        users.add(
+                                lockedUser(GeneralUtil.getCrackedUUIDFromName(nickname), nickname));
+                        locked.add(nickname);
                     }
-                });
+                }
+
+                // Supported: $SHA$, BCrypt, Argon2.
+                warnLocked("AuthMe", locked);
+                warnSkipped("AuthMe", nameless, "no player name (the UUID is derived from it)");
+                return users;
+            }
+        });
     }
 }

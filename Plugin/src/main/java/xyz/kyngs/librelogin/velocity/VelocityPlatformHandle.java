@@ -52,26 +52,20 @@ public class VelocityPlatformHandle implements PlatformHandle<Player, Registered
     public CompletableFuture<Throwable> movePlayer(Player player, RegisteredServer to) {
         return player.createConnectionRequest(to)
                 .connect()
-                .thenApply(
-                        result -> {
-                            if (result.isSuccessful()) {
-                                return (Throwable) null;
-                            }
-                            return (Throwable)
-                                    result.getReasonComponent()
-                                            .map(
-                                                    component ->
-                                                            new RuntimeException(
-                                                                    "Failed to move player: "
-                                                                            + PlainTextComponentSerializer
-                                                                                    .plainText()
-                                                                                    .serialize(
-                                                                                            component)))
-                                            .orElseGet(
-                                                    () ->
-                                                            new RuntimeException(
-                                                                    "Failed to move player"));
-                        })
+                .thenApply(result -> {
+                    if (result.isSuccessful()) {
+                        return (Throwable) null;
+                    }
+                    return (Throwable)
+                            result.getReasonComponent()
+                                    .map(component ->
+                                            new RuntimeException(
+                                                    "Failed to move player: "
+                                                            + PlainTextComponentSerializer
+                                                                    .plainText()
+                                                                    .serialize(component)))
+                                    .orElseGet(() -> new RuntimeException("Failed to move player"));
+                })
                 .exceptionally(ex -> ex);
     }
 
@@ -109,12 +103,9 @@ public class VelocityPlatformHandle implements PlatformHandle<Player, Registered
             var pingResult = server.ping().get(3, TimeUnit.SECONDS);
             var players = pingResult.getPlayers();
 
-            return players.map(
-                            value ->
-                                    new ServerPing(
-                                            value.getMax() == -1
-                                                    ? Integer.MAX_VALUE
-                                                    : value.getMax()))
+            return players.map(value ->
+                            new ServerPing(
+                                    value.getMax() == -1 ? Integer.MAX_VALUE : value.getMax()))
                     .orElse(null);
 
         } catch (Exception e) {
@@ -178,12 +169,10 @@ public class VelocityPlatformHandle implements PlatformHandle<Player, Registered
                 plugin.getServer().getVersion().toString(),
                 getServers().stream().map(Object::toString).toList(),
                 plugin.getServer().getPluginManager().getPlugins().stream()
-                        .map(
-                                plugin ->
-                                        MoreObjects.toStringHelper(
-                                                        plugin.getInstance().orElse(null))
-                                                .add("desc", plugin.getDescription().toString())
-                                                .toString())
+                        .map(plugin ->
+                                MoreObjects.toStringHelper(plugin.getInstance().orElse(null))
+                                        .add("desc", plugin.getDescription().toString())
+                                        .toString())
                         .toList(),
                 plugin.getServerHandler().getLimboServers().stream().map(Object::toString).toList(),
                 plugin.getServerHandler().getLobbyServers().values().stream()

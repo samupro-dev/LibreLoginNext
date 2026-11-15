@@ -88,24 +88,23 @@ public class LibreLoginMySQLDatabaseProvider extends LibreLoginSQLDatabaseProvid
 
     private boolean detectCaseInsensitiveNickname() {
         try {
-            return connector.runQuery(
-                    connection -> {
-                        try (var ps =
-                                        connection.prepareStatement(
-                                                "SELECT COLLATION_NAME FROM"
-                                                    + " information_schema.COLUMNS WHERE"
-                                                    + " TABLE_SCHEMA = DATABASE() AND TABLE_NAME ="
-                                                    + " 'librepremium_data' AND COLUMN_NAME ="
-                                                    + " 'last_nickname'");
-                                var rs = ps.executeQuery()) {
-                            if (!rs.next()) {
-                                return false;
-                            }
-                            var collation = rs.getString(1);
-                            return collation != null
-                                    && collation.toLowerCase(java.util.Locale.ROOT).endsWith("_ci");
-                        }
-                    });
+            return connector.runQuery(connection -> {
+                try (var ps =
+                                connection.prepareStatement(
+                                        "SELECT COLLATION_NAME FROM"
+                                                + " information_schema.COLUMNS WHERE"
+                                                + " TABLE_SCHEMA = DATABASE() AND TABLE_NAME ="
+                                                + " 'librepremium_data' AND COLUMN_NAME ="
+                                                + " 'last_nickname'");
+                        var rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        return false;
+                    }
+                    var collation = rs.getString(1);
+                    return collation != null
+                            && collation.toLowerCase(java.util.Locale.ROOT).endsWith("_ci");
+                }
+            });
         } catch (RuntimeException e) {
             return false;
         }

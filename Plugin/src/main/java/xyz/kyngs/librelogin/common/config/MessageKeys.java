@@ -280,6 +280,13 @@ public class MessageKeys {
                     "Password exceeds maximum allowed storage length.",
                     ConfigurateHelper::getString);
 
+    public static final ConfigurationKey<String> ERROR_PASSWORD_CONTAINS_SPACES =
+            new ConfigurationKey<>(
+                    "error.password-contains-spaces",
+                    "The password cannot contain spaces!",
+                    "Staff set a password with spaces, which /login could never accept.",
+                    ConfigurateHelper::getString);
+
     public static final ConfigurationKey<String> ERROR_PASSWORD_CORRUPTED =
             new ConfigurationKey<>(
                     "error.password-corrupted",
@@ -395,6 +402,14 @@ public class MessageKeys {
                     "error.occupied-user",
                     "The target username is already occupied by another account!",
                     "Attempting to migrate to an occupied nickname.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> ERROR_INVALID_USERNAME =
+            new ConfigurationKey<>(
+                    "error.invalid-username",
+                    "%name% is not a valid Minecraft username (1-16 letters, digits or"
+                            + " underscores)!",
+                    "Attempting to migrate to a nickname that cannot join the server.",
                     ConfigurateHelper::getString);
 
     public static final ConfigurationKey<String> ERROR_PLAYER_ONLINE =
@@ -1050,8 +1065,8 @@ public class MessageKeys {
                     Once added, run /2fa confirm <code> to finish activation.
                     Disconnect to cancel.\
                     """,
-                    "2FA setup instructions when no QR code map can be shown (Paper, or Velocity"
-                            + " without Protocolize).",
+                    "2FA setup instructions when no QR code map can be shown (Velocity without"
+                            + " PacketEvents, or clients older than 1.13).",
                     ConfigurateHelper::getString);
 
     public static final ConfigurationKey<String> TOTP_GENERATING =
@@ -1064,10 +1079,14 @@ public class MessageKeys {
     public static final ConfigurationKey<String> TOTP_SECRET_KEY =
             new ConfigurationKey<>(
                     "totp.secret-key",
-                    "<gold>Secret Key: <yellow><bold>%code%</bold></yellow> <gray>(copy or add"
-                            + " manually into authenticator app)</gray>",
-                    "Manual 2FA secret key displayed in chat for clients unable to render maps or"
-                            + " for manual authenticator entry.",
+                    "<gold>Secret Key:"
+                            + " <click:copy_to_clipboard:'%code%'><hover:show_text:'<gray>Click to"
+                            + " copy'><yellow><bold>%code-grouped%</bold></yellow></hover></click>"
+                            + " <gray>(click the key to copy it, then add it manually to your"
+                            + " authenticator app)</gray>",
+                    "2FA secret key shown in chat for manual entry in the authenticator app. %code%"
+                        + " is the key, %code-grouped% the same key in groups of four; clicking it"
+                        + " copies the key (1.15+ clients).",
                     ConfigurateHelper::getString);
 
     public static final ConfigurationKey<String> EMAIL_VERIFICATION_SUBJECT =

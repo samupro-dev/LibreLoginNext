@@ -137,7 +137,7 @@ dependencies {
     implementation("com.github.ben-manes.caffeine:caffeine:3.3.1")
     implementation("org.spongepowered:configurate-hocon:4.2.0")
     implementation("com.password4j:password4j:1.8.4")
-    implementation("com.helger:ph-totp:2.1.1")
+    implementation("com.helger:ph-totp:2.1.2")
     implementation("commons-codec:commons-codec:1.23.0")
     implementation("com.google.zxing:core:3.5.4")
     implementation("com.google.zxing:javase:3.5.4") {
@@ -151,7 +151,6 @@ dependencies {
     compileOnly("com.google.guava:guava:32.1.3-jre")
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     compileOnly("com.github.retrooper:packetevents-spigot:2.14.0")
-    compileOnly("dev.simplix:protocolize-api:2.4.3")
     compileOnly("org.geysermc.floodgate:api:2.2.5-SNAPSHOT")
     compileOnly("net.luckperms:api:5.5")
     compileOnly("org.apache.logging.log4j:log4j-core:2.26.1")
@@ -160,8 +159,7 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    // Reference data for the map packet ID tests
-    testImplementation("dev.simplix:protocolize-api:2.4.3")
+    // PacketEvents types used by the 2FA map projector tests
     testImplementation("com.github.retrooper:packetevents-spigot:2.14.0")
     // Platform-provided libraries; Gson 2.8.0 is the oldest version shipped by a supported server
     testRuntimeOnly("com.google.guava:guava:32.1.3-jre")

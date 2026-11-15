@@ -44,7 +44,7 @@ class LogFilterTest {
                 "Steve issued server command: /LibreLogin:register a a",
                 "Admin issued server command: /librelogin user register Bob pw",
                 "Admin issued server command: /librelogin user setpassword Bob pw",
-                "Admin issued server command: /librelogin user setpassword Bob pw",
+                "Admin issued server command: /librelogin  user   setpassword Bob pw",
                 "Admin issued server command: /librelogin:librelogin user setpassword Bob pw",
                 "Admin issued server command: /librelogin user setemail Bob a@b.c",
                 "[connected player] Steve (/1.2.3.4:5) -> executed command /login hunter2",

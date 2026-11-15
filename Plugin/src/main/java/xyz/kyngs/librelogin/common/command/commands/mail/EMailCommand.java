@@ -9,7 +9,6 @@ package xyz.kyngs.librelogin.common.command.commands.mail;
 import co.aikar.commands.annotation.CommandAlias;
 import co.aikar.commands.annotation.CommandCompletion;
 import co.aikar.commands.annotation.CommandPermission;
-import co.aikar.commands.annotation.Private;
 import co.aikar.commands.annotation.Single;
 import co.aikar.commands.annotation.Subcommand;
 import co.aikar.commands.annotation.Syntax;
@@ -36,7 +35,6 @@ import xyz.kyngs.librelogin.lib.adventure.audience.Audience;
  *
  * @param <P> the platform-specific player type
  */
-@Private
 @CommandAlias("email")
 @CommandPermission("librelogin.command.email")
 public class EMailCommand<P> extends Command<P> {
@@ -70,70 +68,59 @@ public class EMailCommand<P> extends Command<P> {
     @CommandCompletion("%autocomplete.email-set")
     public CompletionStage<Void> onSetMail(
             Audience sender, @Single String mail, @Single String password) {
-        return runAsync(
-                () -> {
-                    var player = getPlayer(sender);
-                    checkAuthorized(player);
-                    if (mailHandler == null) {
-                        throw new InvalidCommandArgument(getMessage("error.mail-disabled"));
-                    }
-                    var user = getUser(player);
+        return runAsync(() -> {
+            var player = getPlayer(sender);
+            checkAuthorized(player);
+            if (mailHandler == null) {
+                throw new InvalidCommandArgument(getMessage("error.mail-disabled"));
+            }
+            var user = getUser(player);
 
-                    var hashed = user.getHashedPassword();
-                    if (hashed == null) {
-                        throw new InvalidCommandArgument(getMessage("error.no-password"));
-                    }
-                    var crypto = getCrypto(hashed);
+            var hashed = user.getHashedPassword();
+            if (hashed == null) {
+                throw new InvalidCommandArgument(getMessage("error.no-password"));
+            }
+            var crypto = getCrypto(hashed);
 
-                    if (!crypto.matches(password, hashed)) {
-                        plugin.getEventProvider()
-                                .unsafeFire(
-                                        plugin.getEventTypes().wrongPassword,
-                                        new AuthenticWrongPasswordEvent<>(
-                                                user,
-                                                player,
-                                                plugin,
-                                                AuthenticationSource.SET_EMAIL));
-                        throw new InvalidCommandArgument(getMessage("error.password-wrong"));
-                    }
+            if (!crypto.matches(password, hashed)) {
+                plugin.getEventProvider()
+                        .unsafeFire(
+                                plugin.getEventTypes().wrongPassword,
+                                new AuthenticWrongPasswordEvent<>(
+                                        user, player, plugin, AuthenticationSource.SET_EMAIL));
+                throw new InvalidCommandArgument(getMessage("error.password-wrong"));
+            }
 
-                    if (!GeneralUtil.isValidEmail(mail)) {
-                        throw new InvalidCommandArgument(getMessage("error.invalid-email"));
-                    }
+            if (!GeneralUtil.isValidEmail(mail)) {
+                throw new InvalidCommandArgument(getMessage("error.invalid-email"));
+            }
 
-                    // Per account and per destination, so the server's SMTP cannot be used to
-                    // flood one address from many accounts.
-                    if (limiter.tryAndLimit(user.getUuid())
-                            || DESTINATION_LIMITER.tryAndLimit(
-                                    mail.trim().toLowerCase(Locale.ROOT))) {
-                        throw new InvalidCommandArgument(getMessage("error.mail-throttle"));
-                    }
+            // Per account and per destination, so the server's SMTP cannot be used to
+            // flood one address from many accounts.
+            if (limiter.tryAndLimit(user.getUuid())
+                    || DESTINATION_LIMITER.tryAndLimit(mail.trim().toLowerCase(Locale.ROOT))) {
+                throw new InvalidCommandArgument(getMessage("error.mail-throttle"));
+            }
 
-                    var token = GeneralUtil.generateAlphanumericText(16);
+            var token = GeneralUtil.generateAlphanumericText(16);
 
-                    sender.sendMessage(getMessage("info.mail-sending"));
+            sender.sendMessage(getMessage("info.mail-sending"));
 
-                    try {
-                        mailHandler.sendVerificationMail(mail, token, user.getLastNickname());
-                        getAuthorizationProvider()
-                                .getEmailConfirmCache()
-                                .put(
-                                        user.getUuid(),
-                                        new AuthenticAuthorizationProvider.EmailVerifyData(
-                                                mail, token, user.getUuid()));
-                    } catch (Exception e) {
-                        getLogger()
-                                .debug(
-                                        "Cannot send verification mail to "
-                                                + mail
-                                                + " for "
-                                                + player,
-                                        e);
-                        throw new InvalidCommandArgument(getMessage("error.mail-not-sent"));
-                    }
+            try {
+                mailHandler.sendVerificationMail(mail, token, user.getLastNickname());
+                getAuthorizationProvider()
+                        .getEmailConfirmCache()
+                        .put(
+                                user.getUuid(),
+                                new AuthenticAuthorizationProvider.EmailVerifyData(
+                                        mail, token, user.getUuid()));
+            } catch (Exception e) {
+                getLogger().debug("Cannot send verification mail to " + mail + " for " + player, e);
+                throw new InvalidCommandArgument(getMessage("error.mail-not-sent"));
+            }
 
-                    sender.sendMessage(getMessage("info.verification-mail-sent"));
-                });
+            sender.sendMessage(getMessage("info.verification-mail-sent"));
+        });
     }
 
     /**
@@ -147,33 +134,30 @@ public class EMailCommand<P> extends Command<P> {
     @Syntax("{@@syntax.email-verify}")
     @CommandCompletion("%autocomplete.email-verify")
     public CompletionStage<Void> onVerifyMail(Audience sender, @Single String token) {
-        return runAsync(
-                () -> {
-                    var player = getPlayer(sender);
-                    checkAuthorized(player);
-                    var user = getUser(player);
+        return runAsync(() -> {
+            var player = getPlayer(sender);
+            checkAuthorized(player);
+            var user = getUser(player);
 
-                    var cached =
-                            plugin.getAuthorizationProvider()
-                                    .getEmailConfirmCache()
-                                    .getIfPresent(user.getUuid());
-                    if (cached == null) {
-                        throw new InvalidCommandArgument(getMessage("error.no-mail-confirm"));
-                    }
-                    if (!MessageDigest.isEqual(
-                            cached.token().getBytes(StandardCharsets.UTF_8),
-                            token.getBytes(StandardCharsets.UTF_8))) {
-                        throw new InvalidCommandArgument(getMessage("error.wrong-mail-verify"));
-                    }
+            var cached =
                     plugin.getAuthorizationProvider()
                             .getEmailConfirmCache()
-                            .invalidate(user.getUuid());
+                            .getIfPresent(user.getUuid());
+            if (cached == null) {
+                throw new InvalidCommandArgument(getMessage("error.no-mail-confirm"));
+            }
+            if (!MessageDigest.isEqual(
+                    cached.token().getBytes(StandardCharsets.UTF_8),
+                    token.getBytes(StandardCharsets.UTF_8))) {
+                throw new InvalidCommandArgument(getMessage("error.wrong-mail-verify"));
+            }
+            plugin.getAuthorizationProvider().getEmailConfirmCache().invalidate(user.getUuid());
 
-                    user.setEmail(cached.email());
-                    getDatabaseProvider().updateUser(user);
+            user.setEmail(cached.email());
+            getDatabaseProvider().updateUser(user);
 
-                    sender.sendMessage(getMessage("info.mail-verified"));
-                });
+            sender.sendMessage(getMessage("info.mail-verified"));
+        });
     }
 
     /**
@@ -186,48 +170,45 @@ public class EMailCommand<P> extends Command<P> {
     @Syntax("{@@syntax.email-reset}")
     @CommandCompletion("%autocomplete.email-reset")
     public CompletionStage<Void> onResetPassword(Audience audience) {
-        return runAsync(
-                () -> {
-                    var player = getPlayer(audience);
-                    if (mailHandler == null) {
-                        throw new InvalidCommandArgument(getMessage("error.mail-disabled"));
-                    }
-                    var user = getUser(player);
+        return runAsync(() -> {
+            var player = getPlayer(audience);
+            if (mailHandler == null) {
+                throw new InvalidCommandArgument(getMessage("error.mail-disabled"));
+            }
+            var user = getUser(player);
 
-                    if (user.getEmail() == null) {
-                        throw new InvalidCommandArgument(getMessage("error.no-email"));
-                    }
+            if (user.getEmail() == null) {
+                throw new InvalidCommandArgument(getMessage("error.no-email"));
+            }
 
-                    if (limiter.tryAndLimit(user.getUuid())) {
-                        throw new InvalidCommandArgument(getMessage("error.mail-throttle"));
-                    }
+            if (limiter.tryAndLimit(user.getUuid())) {
+                throw new InvalidCommandArgument(getMessage("error.mail-throttle"));
+            }
 
-                    var token = GeneralUtil.generateAlphanumericText(16);
+            var token = GeneralUtil.generateAlphanumericText(16);
 
-                    audience.sendMessage(getMessage("info.mail-sending"));
+            audience.sendMessage(getMessage("info.mail-sending"));
 
-                    try {
-                        mailHandler.sendPasswordResetMail(
-                                user.getEmail(),
-                                token,
-                                user.getLastNickname(),
-                                plugin.getPlatformHandle().getIP(player));
-                        getAuthorizationProvider()
-                                .getPasswordResetCache()
-                                .put(user.getUuid(), token);
-                    } catch (Exception e) {
-                        getLogger()
-                                .debug(
-                                        "Cannot send password reset mail to "
-                                                + user.getEmail()
-                                                + " for "
-                                                + player,
-                                        e);
-                        throw new InvalidCommandArgument(getMessage("error.mail-not-sent"));
-                    }
+            try {
+                mailHandler.sendPasswordResetMail(
+                        user.getEmail(),
+                        token,
+                        user.getLastNickname(),
+                        plugin.getPlatformHandle().getIP(player));
+                getAuthorizationProvider().getPasswordResetCache().put(user.getUuid(), token);
+            } catch (Exception e) {
+                getLogger()
+                        .debug(
+                                "Cannot send password reset mail to "
+                                        + user.getEmail()
+                                        + " for "
+                                        + player,
+                                e);
+                throw new InvalidCommandArgument(getMessage("error.mail-not-sent"));
+            }
 
-                    audience.sendMessage(getMessage("info.reset-password-mail-sent"));
-                });
+            audience.sendMessage(getMessage("info.reset-password-mail-sent"));
+        });
     }
 
     /**
@@ -247,40 +228,37 @@ public class EMailCommand<P> extends Command<P> {
             @Single String token,
             @Single String password,
             @Single String passwordRepeat) {
-        return runAsync(
-                () -> {
-                    var player = getPlayer(audience);
-                    var user = getUser(player);
+        return runAsync(() -> {
+            var player = getPlayer(audience);
+            var user = getUser(player);
 
-                    var cached =
-                            plugin.getAuthorizationProvider()
-                                    .getPasswordResetCache()
-                                    .getIfPresent(user.getUuid());
-                    if (cached == null) {
-                        throw new InvalidCommandArgument(getMessage("error.no-password-reset"));
-                    }
-                    if (!MessageDigest.isEqual(
-                            cached.getBytes(StandardCharsets.UTF_8),
-                            token.getBytes(StandardCharsets.UTF_8))) {
-                        throw new InvalidCommandArgument(getMessage("error.wrong-password-reset"));
-                    }
-                    if (!password.equals(passwordRepeat)) {
-                        throw new InvalidCommandArgument(getMessage("error.password-not-match"));
-                    }
-
-                    var old = user.getHashedPassword();
-                    setPassword(audience, user, password, "info.resetting-password");
-
+            var cached =
                     plugin.getAuthorizationProvider()
                             .getPasswordResetCache()
-                            .invalidate(user.getUuid());
-                    getDatabaseProvider().updateUser(user);
-                    audience.sendMessage(getMessage("info.password-reset"));
+                            .getIfPresent(user.getUuid());
+            if (cached == null) {
+                throw new InvalidCommandArgument(getMessage("error.no-password-reset"));
+            }
+            if (!MessageDigest.isEqual(
+                    cached.getBytes(StandardCharsets.UTF_8),
+                    token.getBytes(StandardCharsets.UTF_8))) {
+                throw new InvalidCommandArgument(getMessage("error.wrong-password-reset"));
+            }
+            if (!password.equals(passwordRepeat)) {
+                throw new InvalidCommandArgument(getMessage("error.password-not-match"));
+            }
 
-                    plugin.getEventProvider()
-                            .unsafeFire(
-                                    plugin.getEventTypes().passwordChange,
-                                    new AuthenticPasswordChangeEvent<>(user, player, plugin, old));
-                });
+            var old = user.getHashedPassword();
+            setPassword(audience, user, password, "info.resetting-password");
+
+            plugin.getAuthorizationProvider().getPasswordResetCache().invalidate(user.getUuid());
+            getDatabaseProvider().updateUser(user);
+            audience.sendMessage(getMessage("info.password-reset"));
+
+            plugin.getEventProvider()
+                    .unsafeFire(
+                            plugin.getEventTypes().passwordChange,
+                            new AuthenticPasswordChangeEvent<>(user, player, plugin, old));
+        });
     }
 }

@@ -583,17 +583,24 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
 
         GeneralUtil.checkAndMigrate(configuration, logger, this);
 
-        imageProjector = provideImageProjector();
+        try {
+            imageProjector = provideImageProjector();
 
-        if (imageProjector != null) {
-            if (!configuration.get(TOTP_ENABLED)) {
+            if (imageProjector != null && !configuration.get(TOTP_ENABLED)) {
                 imageProjector = null;
                 logger.info(
                         "2FA module is disabled in configuration; skipping in-game image projector"
                                 + " setup.");
-            } else {
-                imageProjector.enable();
             }
+        } catch (LinkageError e) {
+            // The QR map integration was built against another API version (e.g. an incompatible
+            // PacketEvents release). It is optional, so it must never block authentication.
+            imageProjector = null;
+            logger.warn(
+                    "The installed PacketEvents version is not compatible with this build of"
+                        + " LibreLogin Next ({}); 2FA QR maps are disabled and the secret key is"
+                        + " shown in chat instead.",
+                    e.toString());
         }
 
         // The projector only renders the QR map; without it the secret is shown in chat, so 2FA
@@ -1000,80 +1007,77 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
         if (EXECUTOR == null || EXECUTOR.isShutdown()) {
             return;
         }
-        GeneralUtil.runAsync(
-                () -> {
-                    if (EXECUTOR == null || EXECUTOR.isShutdown()) {
-                        return;
+        GeneralUtil.runAsync(() -> {
+            if (EXECUTOR == null || EXECUTOR.isShutdown()) {
+                return;
+            }
+            try {
+                var connection =
+                        (HttpURLConnection)
+                                URI.create(
+                                                "https://raw.githubusercontent.com/samupro-dev/LibreLoginNext/refs/heads/master/forbidden-passwords.txt")
+                                        .toURL()
+                                        .openConnection();
+
+                connection.setRequestProperty("User-Agent", GeneralUtil.userAgent(getVersion()));
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(10000);
+
+                var tempFile = new File(getDataFolder(), FORBIDDEN_PASSWORDS_REMOTE_FILE + ".tmp");
+                try (var in = new BufferedInputStream(connection.getInputStream());
+                        var fos = new FileOutputStream(tempFile)) {
+                    var dataBuffer = new byte[8192];
+                    long total = 0;
+                    int bytesRead;
+                    while ((bytesRead = in.read(dataBuffer)) != -1) {
+                        total += bytesRead;
+                        if (total > MAX_FORBIDDEN_PASSWORDS_DOWNLOAD_BYTES) {
+                            throw new IOException(
+                                    "remote list exceeds "
+                                            + MAX_FORBIDDEN_PASSWORDS_DOWNLOAD_BYTES
+                                            + " bytes");
+                        }
+                        fos.write(dataBuffer, 0, bytesRead);
                     }
-                    try {
-                        var connection =
-                                (HttpURLConnection)
-                                        URI.create(
-                                                        "https://raw.githubusercontent.com/samupro-dev/LibreLoginNext/refs/heads/master/forbidden-passwords.txt")
-                                                .toURL()
-                                                .openConnection();
+                } catch (IOException e) {
+                    Files.deleteIfExists(tempFile.toPath());
+                    throw e;
+                } finally {
+                    connection.disconnect();
+                }
 
-                        connection.setRequestProperty(
-                                "User-Agent", GeneralUtil.userAgent(getVersion()));
-                        connection.setConnectTimeout(5000);
-                        connection.setReadTimeout(10000);
+                // The operator's own forbidden-passwords.txt is never overwritten.
+                var targetFile = new File(getDataFolder(), FORBIDDEN_PASSWORDS_REMOTE_FILE);
+                try {
+                    Files.move(
+                            tempFile.toPath(),
+                            targetFile.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING,
+                            StandardCopyOption.ATOMIC_MOVE);
+                } catch (IOException e) {
+                    Files.move(
+                            tempFile.toPath(),
+                            targetFile.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING);
+                }
 
-                        var tempFile =
-                                new File(getDataFolder(), FORBIDDEN_PASSWORDS_REMOTE_FILE + ".tmp");
-                        try (var in = new BufferedInputStream(connection.getInputStream());
-                                var fos = new FileOutputStream(tempFile)) {
-                            var dataBuffer = new byte[8192];
-                            long total = 0;
-                            int bytesRead;
-                            while ((bytesRead = in.read(dataBuffer)) != -1) {
-                                total += bytesRead;
-                                if (total > MAX_FORBIDDEN_PASSWORDS_DOWNLOAD_BYTES) {
-                                    throw new IOException(
-                                            "remote list exceeds "
-                                                    + MAX_FORBIDDEN_PASSWORDS_DOWNLOAD_BYTES
-                                                    + " bytes");
-                                }
-                                fos.write(dataBuffer, 0, bytesRead);
-                            }
-                        } catch (IOException e) {
-                            Files.deleteIfExists(tempFile.toPath());
-                            throw e;
-                        } finally {
-                            connection.disconnect();
-                        }
-
-                        // The operator's own forbidden-passwords.txt is never overwritten.
-                        var targetFile = new File(getDataFolder(), FORBIDDEN_PASSWORDS_REMOTE_FILE);
-                        try {
-                            Files.move(
-                                    tempFile.toPath(),
-                                    targetFile.toPath(),
-                                    StandardCopyOption.REPLACE_EXISTING,
-                                    StandardCopyOption.ATOMIC_MOVE);
-                        } catch (IOException e) {
-                            Files.move(
-                                    tempFile.toPath(),
-                                    targetFile.toPath(),
-                                    StandardCopyOption.REPLACE_EXISTING);
-                        }
-
-                        remoteForbiddenPasswords = readForbiddenPasswordsFromFile(targetFile);
-                        publishForbiddenPasswords();
-                        logger.info(
-                                "Successfully updated forbidden passwords list from remote"
-                                        + " repository ({} passwords loaded).",
-                                forbiddenPasswords.size());
-                    } catch (Exception e) {
-                        logger.warn(
-                                "Failed to download updated forbidden passwords list (attempt"
-                                        + " {}/5): {}.",
-                                attempt,
-                                e.getMessage());
-                        if (attempt < 5 && EXECUTOR != null && !EXECUTOR.isShutdown()) {
-                            delay(() -> downloadForbiddenPasswordsAsync(attempt + 1), 60000L);
-                        }
-                    }
-                });
+                remoteForbiddenPasswords = readForbiddenPasswordsFromFile(targetFile);
+                publishForbiddenPasswords();
+                logger.info(
+                        "Successfully updated forbidden passwords list from remote"
+                                + " repository ({} passwords loaded).",
+                        forbiddenPasswords.size());
+            } catch (Exception e) {
+                logger.warn(
+                        "Failed to download updated forbidden passwords list (attempt"
+                                + " {}/5): {}.",
+                        attempt,
+                        e.getMessage());
+                if (attempt < 5 && EXECUTOR != null && !EXECUTOR.isShutdown()) {
+                    delay(() -> downloadForbiddenPasswordsAsync(attempt + 1), 60000L);
+                }
+            }
+        });
     }
 
     /**
@@ -1306,15 +1310,12 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
             if (server == null) return;
             if (uuid == null) return;
             GeneralUtil.runAsync(() -> saveLastServer(uuid, server))
-                    .exceptionally(
-                            throwable -> {
-                                logger.error(
-                                        "Failed to update last server for player "
-                                                + uuid
-                                                + " upon exit",
-                                        throwable);
-                                return null;
-                            });
+                    .exceptionally(throwable -> {
+                        logger.error(
+                                "Failed to update last server for player " + uuid + " upon exit",
+                                throwable);
+                        return null;
+                    });
         }
     }
 

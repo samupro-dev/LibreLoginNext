@@ -54,36 +54,33 @@ public class RegisterCommand<P> extends AuthorizationCommand<P> {
     @CommandCompletion("%autocomplete.register")
     public CompletionStage<Void> onRegister(
             Audience sender, @Single String password, @Single @Optional String passwordRepeat) {
-        return runAsync(
-                () -> {
-                    var player = getPlayer(sender);
-                    checkUnauthorized(player);
-                    var user = getUser(player);
+        return runAsync(() -> {
+            var player = getPlayer(sender);
+            checkUnauthorized(player);
+            var user = getUser(player);
 
-                    if (user.isRegistered()) {
-                        throw new InvalidCommandArgument(getMessage("error.already-registered"));
-                    }
+            if (user.isRegistered()) {
+                throw new InvalidCommandArgument(getMessage("error.already-registered"));
+            }
 
-                    boolean requireConfirmation =
-                            plugin.getConfiguration().get(REQUIRE_PASSWORD_CONFIRMATION);
-                    if (requireConfirmation) {
-                        if (passwordRepeat == null || !password.contentEquals(passwordRepeat)) {
-                            throw new InvalidCommandArgument(
-                                    getMessage("error.password-not-match"));
-                        }
-                    } else if (passwordRepeat != null && !password.contentEquals(passwordRepeat)) {
-                        throw new InvalidCommandArgument(getMessage("error.password-not-match"));
-                    }
+            boolean requireConfirmation =
+                    plugin.getConfiguration().get(REQUIRE_PASSWORD_CONFIRMATION);
+            if (requireConfirmation) {
+                if (passwordRepeat == null || !password.contentEquals(passwordRepeat)) {
+                    throw new InvalidCommandArgument(getMessage("error.password-not-match"));
+                }
+            } else if (passwordRepeat != null && !password.contentEquals(passwordRepeat)) {
+                throw new InvalidCommandArgument(getMessage("error.password-not-match"));
+            }
 
-                    setPassword(sender, user, password, "info.registering");
+            setPassword(sender, user, password, "info.registering");
 
-                    if (!getMessages().isEmpty("info.registered")) {
-                        sender.sendMessage(getMessage("info.registered"));
-                    }
+            if (!getMessages().isEmpty("info.registered")) {
+                sender.sendMessage(getMessage("info.registered"));
+            }
 
-                    getAuthorizationProvider()
-                            .authorize(
-                                    user, player, AuthenticatedEvent.AuthenticationReason.REGISTER);
-                });
+            getAuthorizationProvider()
+                    .authorize(user, player, AuthenticatedEvent.AuthenticationReason.REGISTER);
+        });
     }
 }

@@ -28,6 +28,7 @@ import xyz.kyngs.librelogin.common.JULLogger;
 import xyz.kyngs.librelogin.common.SLF4JLogger;
 import xyz.kyngs.librelogin.common.ShutdownException;
 import xyz.kyngs.librelogin.common.image.AuthenticImageProjector;
+import xyz.kyngs.librelogin.common.image.packetevents.PacketEventsImageProjector;
 import xyz.kyngs.librelogin.common.util.CancellableTask;
 import xyz.kyngs.librelogin.lib.adventure.audience.Audience;
 import xyz.kyngs.librelogin.paper.protocol.PacketListener;
@@ -303,7 +304,8 @@ public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
 
     @Override
     protected AuthenticImageProjector<Player, World> provideImageProjector() {
-        return null;
+        // PacketEvents is a required dependency on Paper, so QR maps are always available.
+        return new PacketEventsImageProjector<>(this);
     }
 
     @Override

@@ -54,44 +54,40 @@ public class UnregisterCommand<P> extends Command<P> {
     @Syntax("{@@syntax.unregister}")
     @CommandCompletion("%autocomplete.unregister")
     public CompletionStage<Void> onUnregister(Audience sender, @Single String password) {
-        return runAsync(
-                () -> {
-                    var player = getPlayer(sender);
-                    if (!plugin.getConfiguration().get(ALLOW_PLAYER_UNREGISTER)) {
-                        throw new InvalidCommandArgument(getMessage("error.command-disabled"));
-                    }
+        return runAsync(() -> {
+            var player = getPlayer(sender);
+            if (!plugin.getConfiguration().get(ALLOW_PLAYER_UNREGISTER)) {
+                throw new InvalidCommandArgument(getMessage("error.command-disabled"));
+            }
 
-                    checkAuthorized(player);
-                    var user = getUser(player);
+            checkAuthorized(player);
+            var user = getUser(player);
 
-                    if (!user.isRegistered()) {
-                        throw new InvalidCommandArgument(getMessage("error.no-password"));
-                    }
+            if (!user.isRegistered()) {
+                throw new InvalidCommandArgument(getMessage("error.no-password"));
+            }
 
-                    var hashed = user.getHashedPassword();
-                    if (hashed == null) {
-                        throw new InvalidCommandArgument(getMessage("error.no-password"));
-                    }
+            var hashed = user.getHashedPassword();
+            if (hashed == null) {
+                throw new InvalidCommandArgument(getMessage("error.no-password"));
+            }
 
-                    var crypto = getCrypto(hashed);
-                    if (!crypto.matches(password, hashed)) {
-                        plugin.getEventProvider()
-                                .unsafeFire(
-                                        plugin.getEventTypes().wrongPassword,
-                                        new AuthenticWrongPasswordEvent<>(
-                                                user,
-                                                player,
-                                                plugin,
-                                                AuthenticationSource.UNREGISTER));
-                        throw new InvalidCommandArgument(getMessage("error.password-wrong"));
-                    }
+            var crypto = getCrypto(hashed);
+            if (!crypto.matches(password, hashed)) {
+                plugin.getEventProvider()
+                        .unsafeFire(
+                                plugin.getEventTypes().wrongPassword,
+                                new AuthenticWrongPasswordEvent<>(
+                                        user, player, plugin, AuthenticationSource.UNREGISTER));
+                throw new InvalidCommandArgument(getMessage("error.password-wrong"));
+            }
 
-                    user.setHashedPassword(null);
-                    user.setSecret(null);
-                    user.setEmail(null);
-                    getDatabaseProvider().updateUser(user);
+            user.setHashedPassword(null);
+            user.setSecret(null);
+            user.setEmail(null);
+            getDatabaseProvider().updateUser(user);
 
-                    plugin.getPlatformHandle().kick(player, getMessage("kick.unregistered"));
-                });
+            plugin.getPlatformHandle().kick(player, getMessage("kick.unregistered"));
+        });
     }
 }

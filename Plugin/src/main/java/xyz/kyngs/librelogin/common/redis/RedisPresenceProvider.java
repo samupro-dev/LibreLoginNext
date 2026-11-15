@@ -99,15 +99,14 @@ public class RedisPresenceProvider {
             // Atomic: a key that another node took over in the meantime is left alone.
             async.<Long>eval(
                             DELETE_IF_OWNER, ScriptOutputType.INTEGER, new String[] {key}, serverId)
-                    .exceptionally(
-                            t -> {
-                                logger.warn(
-                                        "Failed to remove player presence in Redis for "
-                                                + uuid
-                                                + ": "
-                                                + t.getMessage());
-                                return null;
-                            });
+                    .exceptionally(t -> {
+                        logger.warn(
+                                "Failed to remove player presence in Redis for "
+                                        + uuid
+                                        + ": "
+                                        + t.getMessage());
+                        return null;
+                    });
             async.srem(nodePlayersKey, strUuid);
         } catch (Throwable t) {
             logger.warn(
@@ -179,13 +178,11 @@ public class RedisPresenceProvider {
             futures.add(async.expire(nodePlayersKey, keyTtlSeconds * 2L).toCompletableFuture());
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                    .exceptionally(
-                            t -> {
-                                logger.warn(
-                                        "Redis heartbeat batch encountered an issue: "
-                                                + t.getMessage());
-                                return null;
-                            });
+                    .exceptionally(t -> {
+                        logger.warn(
+                                "Redis heartbeat batch encountered an issue: " + t.getMessage());
+                        return null;
+                    });
         } catch (Throwable t) {
             logger.warn("Redis presence heartbeat encountered an error: " + t.getMessage());
         }

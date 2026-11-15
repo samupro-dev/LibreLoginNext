@@ -51,39 +51,35 @@ public class CrackedCommand<P> extends AbstractPremiumCommand<P> {
             Audience sender,
             @Single @Optional String password,
             @Single @Optional String passwordRepeat) {
-        return runAsync(
-                () -> {
-                    var player = getPlayer(sender);
-                    checkAuthorized(player);
-                    var user = getUser(player);
-                    checkPremium(user);
-                    if (!user.isRegistered()) {
-                        // Without a password the account would become unregistered and claimable
-                        // by anyone who joins with this name, so one is set in the same step.
-                        if (password == null || passwordRepeat == null) {
-                            throw new InvalidCommandArgument(
-                                    getMessage("error.cracked-requires-password"));
-                        }
-                        if (!password.equals(passwordRepeat)) {
-                            throw new InvalidCommandArgument(
-                                    getMessage("error.password-not-match"));
-                        }
-                        setPassword(sender, user, password, "info.editing");
-                    }
+        return runAsync(() -> {
+            var player = getPlayer(sender);
+            checkAuthorized(player);
+            var user = getUser(player);
+            checkPremium(user);
+            if (!user.isRegistered()) {
+                // Without a password the account would become unregistered and claimable
+                // by anyone who joins with this name, so one is set in the same step.
+                if (password == null || passwordRepeat == null) {
+                    throw new InvalidCommandArgument(getMessage("error.cracked-requires-password"));
+                }
+                if (!password.equals(passwordRepeat)) {
+                    throw new InvalidCommandArgument(getMessage("error.password-not-match"));
+                }
+                setPassword(sender, user, password, "info.editing");
+            }
 
-                    sender.sendMessage(getMessage("info.disabling"));
+            sender.sendMessage(getMessage("info.disabling"));
 
-                    user.setPremiumUUID(null);
+            user.setPremiumUUID(null);
 
-                    plugin.getEventProvider()
-                            .unsafeFire(
-                                    plugin.getEventTypes().premiumLoginSwitch,
-                                    new AuthenticPremiumLoginSwitchEvent<>(user, player, plugin));
+            plugin.getEventProvider()
+                    .unsafeFire(
+                            plugin.getEventTypes().premiumLoginSwitch,
+                            new AuthenticPremiumLoginSwitchEvent<>(user, player, plugin));
 
-                    getDatabaseProvider().updateUser(user);
+            getDatabaseProvider().updateUser(user);
 
-                    plugin.getPlatformHandle()
-                            .kick(player, getMessage("kick.premium-info-disabled"));
-                });
+            plugin.getPlatformHandle().kick(player, getMessage("kick.premium-info-disabled"));
+        });
     }
 }

@@ -111,39 +111,38 @@ public class HoconMessages implements Messages {
     private void extractKeys(
             String prefix, CommentedConfigurationNode node, Map<String, TextComponent> target) {
         node.childrenMap()
-                .forEach(
-                        (key, value) -> {
-                            if (!(key instanceof String str)) {
-                                return;
-                            }
+                .forEach((key, value) -> {
+                    if (!(key instanceof String str)) {
+                        return;
+                    }
 
-                            if (value.childrenMap().isEmpty()) {
-                                var string = value.getString();
+                    if (value.childrenMap().isEmpty()) {
+                        var string = value.getString();
 
-                                if (string == null) {
-                                    return;
-                                }
+                        if (string == null) {
+                            return;
+                        }
 
-                                // HTML email templates are read raw (getRawMessage); parsing them
-                                // as
-                                // MiniMessage only wastes work and mangles entities such as &lt;.
-                                if ((prefix + str).startsWith("email.")) {
-                                    return;
-                                }
+                        // HTML email templates are read raw (getRawMessage); parsing them
+                        // as
+                        // MiniMessage only wastes work and mangles entities such as &lt;.
+                        if ((prefix + str).startsWith("email.")) {
+                            return;
+                        }
 
-                                target.put(
-                                        prefix + str,
-                                        (TextComponent)
-                                                Component.empty()
-                                                        .append(
-                                                                SERIALIZER.deserialize(
-                                                                        GeneralUtil
-                                                                                .translateLegacyToMiniMessage(
-                                                                                        string))));
-                            } else {
-                                extractKeys(prefix + str + ".", value, target);
-                            }
-                        });
+                        target.put(
+                                prefix + str,
+                                (TextComponent)
+                                        Component.empty()
+                                                .append(
+                                                        SERIALIZER.deserialize(
+                                                                GeneralUtil
+                                                                        .translateLegacyToMiniMessage(
+                                                                                string))));
+                    } else {
+                        extractKeys(prefix + str + ".", value, target);
+                    }
+                });
     }
 
     /**

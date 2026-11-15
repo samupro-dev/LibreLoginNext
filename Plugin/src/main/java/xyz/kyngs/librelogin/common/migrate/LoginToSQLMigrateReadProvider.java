@@ -78,152 +78,143 @@ public class LoginToSQLMigrateReadProvider extends SQLMigrateReadProvider {
 
     @Override
     public Collection<User> getAllUsers() {
-        return connector.runQuery(
-                connection -> {
-                    try (var ps =
-                                    connection.prepareStatement(
-                                            "SELECT * FROM " + getEscapedTableName());
-                            var rs = ps.executeQuery()) {
-                        var users = new HashSet<User>();
-                        var nameless = 0;
-                        var unreadable = 0;
-                        var empty = 0;
-                        var locked = new ArrayList<String>();
+        return connector.runQuery(connection -> {
+            try (var ps = connection.prepareStatement("SELECT * FROM " + getEscapedTableName());
+                    var rs = ps.executeQuery()) {
+                var users = new HashSet<User>();
+                var nameless = 0;
+                var unreadable = 0;
+                var empty = 0;
+                var locked = new ArrayList<String>();
 
-                        while (rs.next()) {
-                            String nickname = null;
-                            UUID uuid = null;
+                while (rs.next()) {
+                    String nickname = null;
+                    UUID uuid = null;
+                    try {
+                        nickname = getOptionalString(rs, "name", "username", "player_name");
+                        var uuidStr = getOptionalString(rs, "uuid", "player_uuid");
+
+                        if (uuidStr != null) {
                             try {
-                                nickname = getOptionalString(rs, "name", "username", "player_name");
-                                var uuidStr = getOptionalString(rs, "uuid", "player_uuid");
+                                uuid =
+                                        UUID.fromString(
+                                                uuidStr.replace("-", "").length() == 32
+                                                        ? GeneralUtil.fromUnDashedUUID(uuidStr)
+                                                                .toString()
+                                                        : uuidStr);
+                            } catch (Exception ignored) {
+                            }
+                        }
 
-                                if (uuidStr != null) {
-                                    try {
-                                        uuid =
-                                                UUID.fromString(
-                                                        uuidStr.replace("-", "").length() == 32
-                                                                ? GeneralUtil.fromUnDashedUUID(
-                                                                                uuidStr)
-                                                                        .toString()
-                                                                : uuidStr);
-                                    } catch (Exception ignored) {
-                                    }
-                                }
+                        if (uuid == null && nickname != null) {
+                            uuid = GeneralUtil.getCrackedUUIDFromName(nickname);
+                        }
 
-                                if (uuid == null && nickname != null) {
-                                    uuid = GeneralUtil.getCrackedUUIDFromName(nickname);
-                                }
+                        if (uuid == null) {
+                            empty++;
+                            continue;
+                        }
 
-                                if (uuid == null) {
-                                    empty++;
-                                    continue;
-                                }
+                        if (nickname == null || nickname.isEmpty()) {
+                            // LoginTo 4.x stores no player names. A cracked account cannot
+                            // be
+                            // mapped to a name, and leaving it out would let anyone
+                            // register
+                            // that name and inherit its offline-UUID data.
+                            nameless++;
+                            continue;
+                        }
 
-                                if (nickname == null || nickname.isEmpty()) {
-                                    // LoginTo 4.x stores no player names. A cracked account cannot
-                                    // be
-                                    // mapped to a name, and leaving it out would let anyone
-                                    // register
-                                    // that name and inherit its offline-UUID data.
-                                    nameless++;
-                                    continue;
-                                }
+                        var passwordRaw = getOptionalString(rs, "password", "hash");
+                        HashedPassword password = null;
 
-                                var passwordRaw = getOptionalString(rs, "password", "hash");
-                                HashedPassword password = null;
-
-                                if (passwordRaw != null && !passwordRaw.isEmpty()) {
-                                    if (passwordRaw.startsWith("$2a$")
-                                            || passwordRaw.startsWith("$2y$")
-                                            || passwordRaw.startsWith("$2b$")) {
-                                        password =
-                                                new HashedPassword(passwordRaw, null, "BCrypt-2A");
-                                    } else if (passwordRaw.startsWith("$argon2")) {
-                                        password =
-                                                new HashedPassword(passwordRaw, null, "Argon-2ID");
-                                    } else {
-                                        password = locked(passwordRaw);
-                                        locked.add(nickname);
-                                    }
-                                }
-
-                                var onlineUuidStr =
-                                        getOptionalString(rs, "online_uuid", "premium_uuid");
-                                UUID premiumUuid = null;
-                                if (onlineUuidStr != null) {
-                                    try {
-                                        premiumUuid = UUID.fromString(onlineUuidStr);
-                                    } catch (Exception ignored) {
-                                    }
-                                }
-                                if (premiumUuid == null && isPremium(rs)) {
-                                    // LoginTo keys premium players by their online UUID.
-                                    premiumUuid = uuid;
-                                }
-
-                                var lastSeen =
-                                        getOptionalTimestamp(
-                                                rs, "last_seen", "last_login", "lastlogin");
-                                var joinDate =
-                                        getOptionalTimestamp(
-                                                rs, "reg_date", "registration_date", "regdate");
-                                var lastIp = getOptionalString(rs, "ip", "last_ip", "lastip");
-                                var totpSecret =
-                                        getOptionalString(
-                                                rs, "totp_secret", "totp", "secret", "otp_secret");
-                                var email = getOptionalString(rs, "email");
-
-                                users.add(
-                                        new AuthenticUser(
-                                                uuid,
-                                                premiumUuid,
-                                                password,
-                                                nickname,
-                                                joinDate,
-                                                lastSeen,
-                                                totpSecret,
-                                                lastIp,
-                                                null,
-                                                null,
-                                                email));
-
-                            } catch (Exception e) {
-                                if (nickname == null || nickname.isEmpty() || uuid == null) {
-                                    logger.error(
-                                            "Failed to read a LoginTo row without a known"
-                                                    + " identity.",
-                                            e);
-                                    unreadable++;
-                                    continue;
-                                }
-                                logger.error(
-                                        "Failed to read LoginTo user "
-                                                + nickname
-                                                + "; importing it locked.",
-                                        e);
-                                users.add(lockedUser(uuid, nickname));
+                        if (passwordRaw != null && !passwordRaw.isEmpty()) {
+                            if (passwordRaw.startsWith("$2a$")
+                                    || passwordRaw.startsWith("$2y$")
+                                    || passwordRaw.startsWith("$2b$")) {
+                                password = new HashedPassword(passwordRaw, null, "BCrypt-2A");
+                            } else if (passwordRaw.startsWith("$argon2")) {
+                                password = new HashedPassword(passwordRaw, null, "Argon-2ID");
+                            } else {
+                                password = locked(passwordRaw);
                                 locked.add(nickname);
                             }
                         }
 
-                        // A row without a name cannot be locked: its UUID stays claimable by
-                        // whoever
-                        // registers the matching name, so the whole migration is aborted instead.
-                        if (nameless > 0 || unreadable > 0) {
-                            throw new IllegalStateException(
-                                    "LoginTo migration aborted so no account becomes claimable: "
-                                            + nameless
-                                            + " row(s) have no player name (LoginTo 4.x does not"
-                                            + " store names) and "
-                                            + unreadable
-                                            + " row(s) could not be read. Only tables that include"
-                                            + " a name column can be migrated.");
+                        var onlineUuidStr = getOptionalString(rs, "online_uuid", "premium_uuid");
+                        UUID premiumUuid = null;
+                        if (onlineUuidStr != null) {
+                            try {
+                                premiumUuid = UUID.fromString(onlineUuidStr);
+                            } catch (Exception ignored) {
+                            }
+                        }
+                        if (premiumUuid == null && isPremium(rs)) {
+                            // LoginTo keys premium players by their online UUID.
+                            premiumUuid = uuid;
                         }
 
-                        warnLocked("LoginTo", locked);
-                        warnSkipped("LoginTo", empty, "no player name and no UUID");
-                        return users;
+                        var lastSeen =
+                                getOptionalTimestamp(rs, "last_seen", "last_login", "lastlogin");
+                        var joinDate =
+                                getOptionalTimestamp(
+                                        rs, "reg_date", "registration_date", "regdate");
+                        var lastIp = getOptionalString(rs, "ip", "last_ip", "lastip");
+                        var totpSecret =
+                                getOptionalString(
+                                        rs, "totp_secret", "totp", "secret", "otp_secret");
+                        var email = getOptionalString(rs, "email");
+
+                        users.add(
+                                new AuthenticUser(
+                                        uuid,
+                                        premiumUuid,
+                                        password,
+                                        nickname,
+                                        joinDate,
+                                        lastSeen,
+                                        totpSecret,
+                                        lastIp,
+                                        null,
+                                        null,
+                                        email));
+
+                    } catch (Exception e) {
+                        if (nickname == null || nickname.isEmpty() || uuid == null) {
+                            logger.error(
+                                    "Failed to read a LoginTo row without a known" + " identity.",
+                                    e);
+                            unreadable++;
+                            continue;
+                        }
+                        logger.error(
+                                "Failed to read LoginTo user "
+                                        + nickname
+                                        + "; importing it locked.",
+                                e);
+                        users.add(lockedUser(uuid, nickname));
+                        locked.add(nickname);
                     }
-                });
+                }
+
+                // A row without a name cannot be locked: its UUID stays claimable by
+                // whoever
+                // registers the matching name, so the whole migration is aborted instead.
+                if (nameless > 0 || unreadable > 0) {
+                    throw new IllegalStateException(
+                            "LoginTo migration aborted so no account becomes claimable: "
+                                    + nameless
+                                    + " row(s) have no player name (LoginTo 4.x does not"
+                                    + " store names) and "
+                                    + unreadable
+                                    + " row(s) could not be read. Only tables that include"
+                                    + " a name column can be migrated.");
+                }
+
+                warnLocked("LoginTo", locked);
+                warnSkipped("LoginTo", empty, "no player name and no UUID");
+                return users;
+            }
+        });
     }
 }

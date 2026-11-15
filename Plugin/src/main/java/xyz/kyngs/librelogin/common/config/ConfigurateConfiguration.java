@@ -79,10 +79,8 @@ public class ConfigurateConfiguration {
 
         var extractedKeys =
                 defaultKeys.stream()
-                        .map(
-                                data ->
-                                        new BiHolder<>(
-                                                GeneralUtil.extractKeys(data.key()), data.value()))
+                        .map(data ->
+                                new BiHolder<>(GeneralUtil.extractKeys(data.key()), data.value()))
                         .toList();
 
         for (var key : extractedKeys) {

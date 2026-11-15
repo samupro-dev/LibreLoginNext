@@ -64,7 +64,7 @@ Cracked (Steve): unregistered account    ➜  guided to /register
 ```
 
 ### 📱 In-game 2FA map projection
-On **Velocity with Protocolize**, players hold a generated Minecraft map that displays their 2FA QR code directly in-game — no need to switch windows or open a browser. On **Paper** (and for 1.7–1.12 clients) the secret key is shown in chat for manual entry.
+On **Paper** and on **Velocity with [PacketEvents](https://modrinth.com/plugin/packetevents)**, players hold a generated Minecraft map that displays their 2FA QR code directly in-game — no need to switch windows or open a browser. On Velocity without PacketEvents (and for 1.7–1.12 clients) the secret key is shown in chat for manual entry.
 
 - Works with Google Authenticator, Microsoft Authenticator, Authy and every TOTP app.
 - Setup flow: **`/2fa`** ➜ hold the map / copy the key ➜ scan with your app ➜ **`/2fa confirm <code>`**.
@@ -93,8 +93,8 @@ Connect multiple Velocity proxies into one unified network with instant cache up
 
 | Platform | Versions | Status | Notes |
 |---|---|:---:|---|
-| **Velocity** | `3.x` & `4.x` | ✅ Primary target | Async non-blocking pipeline, in-game 2FA maps (with Protocolize), Redis clustering. |
-| **Paper** | `1.13.2` – `26.3` | ✅ Fully supported | Proxy detection, spawn-location handling, packet listeners. Requires **PacketEvents**. |
+| **Velocity** | `3.x` & `4.x` | ✅ Primary target | Async non-blocking pipeline, in-game 2FA maps (with PacketEvents), Redis clustering. |
+| **Paper** | `1.13.2` – `26.3` | ✅ Fully supported | Proxy detection, spawn-location handling, packet listeners, in-game 2FA maps. Requires **PacketEvents**. |
 | **Client protocols** | `1.7` – `26.3` | ✅ Universal | Full authentication and session support. |
 | **Bedrock Edition** | Floodgate `2.2.5+` | ✅ Compatible | Automatic Floodgate UUID detection and cracked/premium resolution bypass. |
 | **BungeeCord** | — | ❌ Not supported | Use Velocity instead. |
@@ -104,7 +104,7 @@ Connect multiple Velocity proxies into one unified network with instant cache up
 
 ### Velocity (network)
 1. Download the latest LibreLogin Next jar from [SpigotMC](https://www.spigotmc.org/resources/139932/) or [build it yourself](#building-from-source).
-2. Put the jar in the proxy's `plugins/` folder — **do not** install it on the backend servers. Add [Protocolize](https://github.com/Exceptionflug/protocolize) to enable in-game 2FA QR maps.
+2. Put the jar in the proxy's `plugins/` folder — **do not** install it on the backend servers. Add [PacketEvents](https://modrinth.com/plugin/packetevents) (Velocity build) to enable in-game 2FA QR maps.
 3. Start the proxy once to generate the configuration.
 4. Set the `limbo` server(s) where players authenticate and the `lobby` servers they are sent to afterwards.
 5. Configure a shared database (MySQL/MariaDB or PostgreSQL) and, for multiple proxies, enable Redis.
@@ -269,7 +269,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.github.samupro-dev.LibreLoginNext:API:<VERSION>")
+    compileOnly("com.github.samupro-dev.LibreLoginNext:API:0.26.3")
 }
 ```
 

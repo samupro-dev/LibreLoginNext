@@ -57,35 +57,34 @@ public class FastLoginSQLMigrateReadProvider extends SQLMigrateReadProvider {
     @Override
     public Collection<User> getAllUsers() {
         Multimap<UUID, String> premiumUsers =
-                connector.runQuery(
-                        connection -> {
-                            Multimap<UUID, String> map = HashMultimap.create();
+                connector.runQuery(connection -> {
+                    Multimap<UUID, String> map = HashMultimap.create();
 
-                            try (var ps =
-                                            connection.prepareStatement(
-                                                    "SELECT * FROM " + getEscapedTableName());
-                                    var rs = ps.executeQuery()) {
-                                while (rs.next()) {
-                                    try {
-                                        if (rs.getInt("Premium") != 1) {
-                                            continue;
-                                        }
-
-                                        var premiumUUID =
-                                                GeneralUtil.fromUnDashedUUID(rs.getString("UUID"));
-                                        var name = rs.getString("Name");
-
-                                        map.put(premiumUUID, name);
-                                    } catch (Exception e) {
-                                        logger.error(
-                                                "Error while migrating user from FastLogin db,"
-                                                        + " omitting");
-                                    }
+                    try (var ps =
+                                    connection.prepareStatement(
+                                            "SELECT * FROM " + getEscapedTableName());
+                            var rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            try {
+                                if (rs.getInt("Premium") != 1) {
+                                    continue;
                                 }
-                            }
 
-                            return map;
-                        });
+                                var premiumUUID =
+                                        GeneralUtil.fromUnDashedUUID(rs.getString("UUID"));
+                                var name = rs.getString("Name");
+
+                                map.put(premiumUUID, name);
+                            } catch (Exception e) {
+                                logger.error(
+                                        "Error while migrating user from FastLogin db,"
+                                                + " omitting");
+                            }
+                        }
+                    }
+
+                    return map;
+                });
 
         for (Map.Entry<UUID, Collection<String>> entry : premiumUsers.asMap().entrySet()) {
             var names = entry.getValue();
@@ -160,17 +159,16 @@ public class FastLoginSQLMigrateReadProvider extends SQLMigrateReadProvider {
             if (main instanceof SQLDatabaseConnector sqlMain) {
                 String finalName = name;
                 try {
-                    sqlMain.runQuery(
-                            connection2 -> {
-                                try (var ps2 =
-                                        connection2.prepareStatement(
-                                                "UPDATE librepremium_data SET premium_uuid=? WHERE"
-                                                        + " last_nickname=?")) {
-                                    ps2.setString(1, premiumUUID.toString());
-                                    ps2.setString(2, finalName);
-                                    ps2.executeUpdate();
-                                }
-                            });
+                    sqlMain.runQuery(connection2 -> {
+                        try (var ps2 =
+                                connection2.prepareStatement(
+                                        "UPDATE librepremium_data SET premium_uuid=? WHERE"
+                                                + " last_nickname=?")) {
+                            ps2.setString(1, premiumUUID.toString());
+                            ps2.setString(2, finalName);
+                            ps2.executeUpdate();
+                        }
+                    });
                 } catch (RuntimeException e) {
                     // e.g. the premium UUID is already bound to another account
                     logger.error(

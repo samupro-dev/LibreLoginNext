@@ -1,14 +1,14 @@
 import com.diffplug.gradle.spotless.SpotlessExtension
 
 plugins {
-    id("com.diffplug.spotless") version "8.10.4"
+    id("com.diffplug.spotless") version "8.11.0"
     // Applied by the modules that produce shaded jars; the version is managed here only.
     id("com.gradleup.shadow") version "9.6.1" apply false
 }
 
 defaultTasks("shadowJar")
 
-version = "0.26.2"
+version = "0.26.3"
 
 subprojects {
     /*

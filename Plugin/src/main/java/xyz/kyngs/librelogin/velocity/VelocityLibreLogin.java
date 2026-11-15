@@ -13,7 +13,6 @@ import co.aikar.commands.CommandManager;
 import co.aikar.commands.VelocityCommandIssuer;
 import co.aikar.commands.VelocityCommandManager;
 import com.google.inject.Inject;
-import com.velocitypowered.api.network.ProtocolVersion;
 import com.velocitypowered.api.plugin.PluginDescription;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.Player;
@@ -32,7 +31,7 @@ import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 import xyz.kyngs.librelogin.common.SLF4JLogger;
 import xyz.kyngs.librelogin.common.ShutdownException;
 import xyz.kyngs.librelogin.common.image.AuthenticImageProjector;
-import xyz.kyngs.librelogin.common.image.protocolize.ProtocolizeImageProjector;
+import xyz.kyngs.librelogin.common.image.packetevents.PacketEventsImageProjector;
 import xyz.kyngs.librelogin.common.util.CancellableTask;
 import xyz.kyngs.librelogin.common.util.GeneralUtil;
 import xyz.kyngs.librelogin.lib.adventure.audience.Audience;
@@ -114,45 +113,43 @@ public class VelocityLibreLogin extends AuthenticLibreLogin<Player, RegisteredSe
             }
             player.createConnectionRequest(lobby)
                     .connect()
-                    .whenComplete(
-                            (result, throwable) -> {
-                                if (throwable != null || result == null || !result.isSuccessful()) {
-                                    // The player left while being moved: nothing to report.
-                                    if (!player.isActive()) {
-                                        return;
-                                    }
-                                    if (throwable != null) {
-                                        getLogger()
-                                                .warn(
-                                                        "Failed to connect player {} to lobby {}:"
-                                                                + " {}",
-                                                        player.getUsername(),
-                                                        lobby.getServerInfo().getName(),
-                                                        GeneralUtil.getFurthestCause(throwable)
-                                                                .getMessage());
-                                    }
-                                    var reason =
-                                            result != null
-                                                    ? result.getReasonComponent()
-                                                            .orElseGet(this::noLobbyReason)
-                                                    : noLobbyReason();
-                                    player.disconnect(reason);
-                                    return;
-                                }
-                                if (player.getCurrentServer().isEmpty()) {
-                                    return;
-                                }
-                                if (player.getCurrentServer()
-                                        .get()
-                                        .getServerInfo()
-                                        .getName()
-                                        .equals(
-                                                result.getAttemptedConnection()
-                                                        .getServerInfo()
-                                                        .getName())) {
-                                    return;
-                                }
-                            });
+                    .whenComplete((result, throwable) -> {
+                        if (throwable != null || result == null || !result.isSuccessful()) {
+                            // The player left while being moved: nothing to report.
+                            if (!player.isActive()) {
+                                return;
+                            }
+                            if (throwable != null) {
+                                getLogger()
+                                        .warn(
+                                                "Failed to connect player {} to lobby {}:" + " {}",
+                                                player.getUsername(),
+                                                lobby.getServerInfo().getName(),
+                                                GeneralUtil.getFurthestCause(throwable)
+                                                        .getMessage());
+                            }
+                            var reason =
+                                    result != null
+                                            ? result.getReasonComponent()
+                                                    .orElseGet(this::noLobbyReason)
+                                            : noLobbyReason();
+                            player.disconnect(reason);
+                            return;
+                        }
+                        if (player.getCurrentServer().isEmpty()) {
+                            return;
+                        }
+                        if (player.getCurrentServer()
+                                .get()
+                                .getServerInfo()
+                                .getName()
+                                .equals(
+                                        result.getAttemptedConnection()
+                                                .getServerInfo()
+                                                .getName())) {
+                            return;
+                        }
+                    });
         } catch (EventCancelledException ignored) {
         }
     }
@@ -190,42 +187,15 @@ public class VelocityLibreLogin extends AuthenticLibreLogin<Player, RegisteredSe
 
     @Override
     protected AuthenticImageProjector<Player, RegisteredServer> provideImageProjector() {
-        if (pluginPresent("protocolize")) {
-            var projector = new ProtocolizeImageProjector<>(this);
-            var maxProtocol = ProtocolVersion.MAXIMUM_VERSION.getProtocol();
-
-            if (maxProtocol == 760) {
-                try {
-                    var split = server.getVersion().getVersion().split("-");
-                    var build = Integer.parseInt(split[split.length - 1].replace("b", ""));
-
-                    if (build < 172) {
-                        logger.warn(
-                                "Detected protocolize, but in order for the integration to work"
-                                        + " properly, you must be running Velocity build 172 or"
-                                        + " newer!");
-                        return null;
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-
-            if (!projector.compatible()) {
-                getLogger()
-                        .warn(
-                                "Protocolize is installed but reports an incompatible version;"
-                                        + " in-game QR map rendering for 2FA will be disabled.");
-                return null;
-            }
-            getLogger().info("Protocolize integration initialized; 2FA map projection enabled.");
-            return projector;
-        } else {
+        if (!pluginPresent("packetevents")) {
             getLogger()
                     .info(
-                            "Protocolize plugin is not installed; in-game QR map rendering for 2FA"
-                                    + " will be unavailable.");
+                            "PacketEvents is not installed on the proxy; 2FA QR maps are"
+                                    + " unavailable and the secret key is shown in chat instead.");
             return null;
         }
+        getLogger().info("PacketEvents integration initialized; 2FA map projection enabled.");
+        return new PacketEventsImageProjector<>(this);
     }
 
     @Override

@@ -114,21 +114,20 @@ public class RedisService {
                             .ioThreadPoolSize(2)
                             .computationThreadPoolSize(2)
                             .reconnectDelay(Delay.decorrelatedJitter())
-                            .threadFactoryProvider(
-                                    poolName ->
-                                            (ThreadFactory)
-                                                    runnable -> {
-                                                        var thread =
-                                                                new Thread(
-                                                                        runnable,
-                                                                        "LibreLogin-Next-Lettuce-"
-                                                                                + poolName
-                                                                                + "-"
-                                                                                + threadCounter
-                                                                                        .getAndIncrement());
-                                                        thread.setDaemon(true);
-                                                        return thread;
-                                                    })
+                            .threadFactoryProvider(poolName ->
+                                    (ThreadFactory)
+                                            runnable -> {
+                                                var thread =
+                                                        new Thread(
+                                                                runnable,
+                                                                "LibreLogin-Next-Lettuce-"
+                                                                        + poolName
+                                                                        + "-"
+                                                                        + threadCounter
+                                                                                .getAndIncrement());
+                                                thread.setDaemon(true);
+                                                return thread;
+                                            })
                             .build();
 
             redisClient = RedisClient.create(clientResources, redisUri);

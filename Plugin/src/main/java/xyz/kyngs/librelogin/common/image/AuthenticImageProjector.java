@@ -28,10 +28,4 @@ public abstract class AuthenticImageProjector<P, S> extends AuthenticHandler<P, 
     public AuthenticImageProjector(AuthenticLibreLogin<P, S> plugin) {
         super(plugin);
     }
-
-    /**
-     * Enables and initializes the image projector subsystem (e.g. registering packet
-     * listeners/modules).
-     */
-    public abstract void enable();
 }

@@ -32,7 +32,9 @@ import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 import xyz.kyngs.librelogin.common.config.ConfigurationKeys;
 import xyz.kyngs.librelogin.common.config.HoconPluginConfiguration;
 import xyz.kyngs.librelogin.common.config.key.ConfigurationKey;
+import xyz.kyngs.librelogin.lib.adventure.text.Component;
 import xyz.kyngs.librelogin.lib.adventure.text.TextComponent;
+import xyz.kyngs.librelogin.lib.adventure.text.event.ClickEvent;
 
 /**
  * Miscellaneous static utility methods for UUID conversion, string generation, async task dispatch,
@@ -143,12 +145,37 @@ public final class GeneralUtil {
         for (Map.Entry<String, String> entry : replacements.entrySet()) {
             component =
                     (TextComponent)
-                            component.replaceText(
-                                    builder ->
-                                            builder.matchLiteral(entry.getKey())
-                                                    .replacement(entry.getValue()));
+                            component.replaceText(builder ->
+                                    builder.matchLiteral(entry.getKey())
+                                            .replacement(entry.getValue()));
         }
-        return component;
+        return (TextComponent) replaceInClickEvents(component, replacements);
+    }
+
+    // replaceText only rewrites visible text, so placeholders inside click payloads
+    // (e.g. <click:copy_to_clipboard:'%code%'>) are replaced here.
+    private static Component replaceInClickEvents(
+            Component component, Map<String, String> replacements) {
+        var click = component.clickEvent();
+        if (click != null && click.payload() instanceof ClickEvent.Payload.Text text) {
+            var value = text.value();
+            for (Map.Entry<String, String> entry : replacements.entrySet()) {
+                value = value.replace(entry.getKey(), entry.getValue());
+            }
+            if (!value.equals(text.value())) {
+                component =
+                        component.clickEvent(
+                                ClickEvent.clickEvent(
+                                        click.action(), ClickEvent.Payload.string(value)));
+            }
+        }
+        var children = component.children();
+        if (children.isEmpty()) return component;
+        var replaced = new ArrayList<Component>(children.size());
+        for (var child : children) {
+            replaced.add(replaceInClickEvents(child, replacements));
+        }
+        return component.children(replaced);
     }
 
     /**
@@ -320,15 +347,14 @@ public final class GeneralUtil {
         var future = new CompletableFuture<Void>();
         try {
             AuthenticLibreLogin.getExecutor()
-                    .submit(
-                            () -> {
-                                try {
-                                    runnable.run();
-                                    future.complete(null);
-                                } catch (Throwable e) {
-                                    future.completeExceptionally(e);
-                                }
-                            });
+                    .submit(() -> {
+                        try {
+                            runnable.run();
+                            future.complete(null);
+                        } catch (Throwable e) {
+                            future.completeExceptionally(e);
+                        }
+                    });
         } catch (RejectedExecutionException e) {
             future.completeExceptionally(e);
         }

@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import xyz.kyngs.librelogin.api.authorization.AuthorizationProvider;
@@ -290,14 +291,13 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
     /** Periodically broadcasts action bar prompts to all currently unauthorized players. */
     private void broadcastActionbars() {
         if (!plugin.getConfiguration().get(ConfigurationKeys.USE_ACTION_BAR)) return;
-        unAuthorized.forEach(
-                (uuid, registered) -> {
-                    var player = plugin.getPlayerForUUID(uuid);
-                    if (player == null) return;
-                    var audience = platformHandle.getAudienceForPlayer(player);
-                    if (audience == null) return;
-                    sendActionBar(registered, audience);
-                });
+        unAuthorized.forEach((uuid, registered) -> {
+            var player = plugin.getPlayerForUUID(uuid);
+            if (player == null) return;
+            var audience = platformHandle.getAudienceForPlayer(player);
+            if (audience == null) return;
+            sendActionBar(registered, audience);
+        });
     }
 
     /**
@@ -364,14 +364,13 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
 
     /** Notifies all unauthorized players with periodic reminder messages and titles. */
     public void notifyUnauthorized() {
-        unAuthorized.forEach(
-                (uuid, registered) -> {
-                    var player = plugin.getPlayerForUUID(uuid);
-                    if (player == null) return;
-                    var audience = platformHandle.getAudienceForPlayer(player);
-                    if (audience == null) return;
-                    sendInfoMessage(registered, audience);
-                });
+        unAuthorized.forEach((uuid, registered) -> {
+            var player = plugin.getPlayerForUUID(uuid);
+            if (player == null) return;
+            var audience = platformHandle.getAudienceForPlayer(player);
+            if (audience == null) return;
+            sendInfoMessage(registered, audience);
+        });
     }
 
     /**
@@ -390,8 +389,10 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
      * @param user the user database profile
      * @param player the platform player instance
      * @param data the TOTP secret and QR/URI payload
+     * @return completes with {@code true} once the player is on the limbo server, or {@code false}
+     *     if the player was kicked because no limbo server was reachable
      */
-    public void beginTwoFactorAuth(User user, P player, TOTPData data) {
+    public CompletableFuture<Boolean> beginTwoFactorAuth(User user, P player, TOTPData data) {
         var uuid = platformHandle.getUUIDForPlayer(player);
         awaiting2FA.put(uuid, data.secret());
 
@@ -400,18 +401,19 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
         if (limbo == null) {
             awaiting2FA.remove(uuid);
             platformHandle.kick(player, plugin.getMessages().getMessage("kick.no-limbo"));
-            return;
+            return CompletableFuture.completedFuture(false);
         }
 
-        platformHandle
+        return platformHandle
                 .movePlayer(player, limbo)
-                .whenComplete(
-                        (t, e) -> {
-                            if (t != null || e != null) {
-                                awaiting2FA.remove(uuid);
-                                platformHandle.kick(
-                                        player, plugin.getMessages().getMessage("kick.no-limbo"));
-                            }
-                        });
+                .handle((t, e) -> {
+                    if (t != null || e != null) {
+                        awaiting2FA.remove(uuid);
+                        platformHandle.kick(
+                                player, plugin.getMessages().getMessage("kick.no-limbo"));
+                        return false;
+                    }
+                    return true;
+                });
     }
 }

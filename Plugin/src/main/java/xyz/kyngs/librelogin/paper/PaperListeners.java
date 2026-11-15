@@ -316,7 +316,7 @@ public class PaperListeners extends AuthenticListeners<PaperLibreLogin, Player, 
         }
 
         Function<World, Boolean> isLimbo =
-                (w) -> plugin.getConfiguration().get(ConfigurationKeys.LIMBO).contains(w.getName());
+                w -> plugin.getConfiguration().get(ConfigurationKeys.LIMBO).contains(w.getName());
 
         World chosenWorld = world.value();
         boolean isAuthenticated = world.key();
@@ -377,14 +377,13 @@ public class PaperListeners extends AuthenticListeners<PaperLibreLogin, Player, 
                 var signature = packet.getSignatureData();
 
                 clientKey =
-                        signature.map(
-                                data -> {
-                                    var expires = data.getTimestamp();
-                                    var key = data.getPublicKey();
-                                    var signatureData = data.getSignature();
+                        signature.map(data -> {
+                            var expires = data.getTimestamp();
+                            var key = data.getPublicKey();
+                            var signatureData = data.getSignature();
 
-                                    return new ClientPublicKey(expires, key, signatureData);
-                                });
+                            return new ClientPublicKey(expires, key, signatureData);
+                        });
             }
 
             if (onlineNames.contains(username.toLowerCase(Locale.ROOT))) {
@@ -518,23 +517,19 @@ public class PaperListeners extends AuthenticListeners<PaperLibreLogin, Player, 
 
         try {
             AuthenticLibreLogin.getLoginExecutor()
-                    .execute(
-                            () -> {
-                                try {
-                                    asyncPacketReceive(copy);
-                                } catch (Throwable t) {
-                                    plugin.getLogger()
-                                            .error(
-                                                    "Failed to process login packet for "
-                                                            + user.getName(),
-                                                    t);
-                                    kickPlayer(
-                                            plugin.getMessages().getMessage("kick.server-busy"),
-                                            user);
-                                } finally {
-                                    copy.cleanUp();
-                                }
-                            });
+                    .execute(() -> {
+                        try {
+                            asyncPacketReceive(copy);
+                        } catch (Throwable t) {
+                            plugin.getLogger()
+                                    .error(
+                                            "Failed to process login packet for " + user.getName(),
+                                            t);
+                            kickPlayer(plugin.getMessages().getMessage("kick.server-busy"), user);
+                        } finally {
+                            copy.cleanUp();
+                        }
+                    });
         } catch (RejectedExecutionException e) {
             // Login pool saturated (join flood): free the copy and refuse instead of hanging.
             copy.cleanUp();

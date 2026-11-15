@@ -311,20 +311,19 @@ public class CommandProvider<P, S> extends AuthenticHandler<P, S> {
 
         plugin.getMessages()
                 .getMessages()
-                .forEach(
-                        (key, value) -> {
-                            if (key.startsWith("syntax")) {
-                                localeMap.put(key, ACF_SERIALIZER.serialize(value));
-                            } else if (key.startsWith("autocomplete")) {
-                                var serialized = ACF_SERIALIZER.serialize(value);
-                                manager.getCommandReplacements()
-                                        .addReplacement(
-                                                key,
-                                                serialized.isBlank()
-                                                        ? serialized
-                                                        : serialized + " @nothing");
-                            }
-                        });
+                .forEach((key, value) -> {
+                    if (key.startsWith("syntax")) {
+                        localeMap.put(key, ACF_SERIALIZER.serialize(value));
+                    } else if (key.startsWith("autocomplete")) {
+                        var serialized = ACF_SERIALIZER.serialize(value);
+                        manager.getCommandReplacements()
+                                .addReplacement(
+                                        key,
+                                        serialized.isBlank()
+                                                ? serialized
+                                                : serialized + " @nothing");
+                    }
+                });
 
         locales.addMessageStrings(locales.getDefaultLocale(), localeMap);
     }

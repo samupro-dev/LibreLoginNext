@@ -67,9 +67,8 @@ public class PaperPlatformHandle implements PlatformHandle<Player, World> {
 
     private static CompletableFuture<Throwable> teleport(Player player, World to) {
         return player.teleportAsync(to.getSpawnLocation())
-                .thenApply(
-                        success ->
-                                success ? null : (Throwable) new RuntimeException("Unknown cause"))
+                .thenApply(success ->
+                        success ? null : (Throwable) new RuntimeException("Unknown cause"))
                 .exceptionally(ex -> ex);
     }
 
@@ -200,13 +199,12 @@ public class PaperPlatformHandle implements PlatformHandle<Player, World> {
                 Bukkit.getName() + " " + Bukkit.getVersion(),
                 getServers().stream().map(this::fromWorld).toList(),
                 Arrays.stream(Bukkit.getPluginManager().getPlugins())
-                        .map(
-                                plugin ->
-                                        MoreObjects.toStringHelper(plugin)
-                                                .add("name", plugin.getName())
-                                                .add("version", PaperUtil.getPluginVersion(plugin))
-                                                .add("authors", PaperUtil.getPluginAuthors(plugin))
-                                                .toString())
+                        .map(plugin ->
+                                MoreObjects.toStringHelper(plugin)
+                                        .add("name", plugin.getName())
+                                        .add("version", PaperUtil.getPluginVersion(plugin))
+                                        .add("authors", PaperUtil.getPluginAuthors(plugin))
+                                        .toString())
                         .toList(),
                 plugin.getServerHandler().getLimboServers().stream().map(this::fromWorld).toList(),
                 plugin.getServerHandler().getLobbyServers().values().stream()

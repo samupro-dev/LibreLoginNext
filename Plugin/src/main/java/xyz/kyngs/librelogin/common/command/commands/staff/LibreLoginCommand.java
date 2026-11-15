@@ -38,6 +38,7 @@ import xyz.kyngs.librelogin.common.database.AuthenticDatabaseProvider;
 import xyz.kyngs.librelogin.common.database.AuthenticUser;
 import xyz.kyngs.librelogin.common.event.events.AuthenticPasswordChangeEvent;
 import xyz.kyngs.librelogin.common.event.events.AuthenticPremiumLoginSwitchEvent;
+import xyz.kyngs.librelogin.common.listener.AuthenticListeners;
 import xyz.kyngs.librelogin.common.server.AuthenticServerHandler;
 import xyz.kyngs.librelogin.common.util.GeneralUtil;
 import xyz.kyngs.librelogin.lib.adventure.audience.Audience;
@@ -77,10 +78,8 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Subcommand("about")
     @Default
     public CompletionStage<Void> onAbout(Audience audience) {
-        return runAsync(
-                () ->
-                        audience.sendMessage(
-                                getMessage("info.about", "%version%", plugin.getVersion())));
+        return runAsync(() ->
+                audience.sendMessage(getMessage("info.about", "%version%", plugin.getVersion())));
     }
 
     /**
@@ -93,65 +92,60 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Subcommand("health")
     @CommandPermission("librelogin.admin.health")
     public CompletionStage<Void> onHealth(Audience audience) {
-        return runAsync(
-                () -> {
-                    var runtime = Runtime.getRuntime();
-                    long maxMemory = runtime.maxMemory() / 1048576L;
-                    long totalMemory = runtime.totalMemory() / 1048576L;
-                    long freeMemory = runtime.freeMemory() / 1048576L;
-                    long usedMemory = totalMemory - freeMemory;
+        return runAsync(() -> {
+            var runtime = Runtime.getRuntime();
+            long maxMemory = runtime.maxMemory() / 1048576L;
+            long totalMemory = runtime.totalMemory() / 1048576L;
+            long freeMemory = runtime.freeMemory() / 1048576L;
+            long usedMemory = totalMemory - freeMemory;
 
-                    String platformName =
-                            switch (plugin.getPlatformHandle()
-                                    .getPlatformIdentifier()
-                                    .toLowerCase(Locale.ROOT)) {
-                                case "paper" -> "Paper";
-                                case "velocity" -> "Velocity";
-                                default -> plugin.getPlatformHandle().getPlatformIdentifier();
-                            };
+            String platformName =
+                    switch (plugin.getPlatformHandle()
+                            .getPlatformIdentifier()
+                            .toLowerCase(Locale.ROOT)) {
+                        case "paper" -> "Paper";
+                        case "velocity" -> "Velocity";
+                        default -> plugin.getPlatformHandle().getPlatformIdentifier();
+                    };
 
-                    boolean connected =
-                            plugin.getDatabaseProvider() != null
-                                    && plugin.getDatabaseProvider().connected();
-                    String dbStatus =
-                            text(
-                                    connected
-                                            ? "health.status-connected"
-                                            : "health.status-disconnected");
-                    String dbType =
-                            plugin.getConfiguration() != null
-                                    ? plugin.getConfiguration().get(ConfigurationKeys.DATABASE_TYPE)
-                                    : "Unknown";
+            boolean connected =
+                    plugin.getDatabaseProvider() != null
+                            && plugin.getDatabaseProvider().connected();
+            String dbStatus =
+                    text(connected ? "health.status-connected" : "health.status-disconnected");
+            String dbType =
+                    plugin.getConfiguration() != null
+                            ? plugin.getConfiguration().get(ConfigurationKeys.DATABASE_TYPE)
+                            : "Unknown";
 
-                    long cachedUsers = 0;
-                    if (plugin.getDatabaseProvider()
-                            instanceof AuthenticDatabaseProvider<?> authDb) {
-                        cachedUsers = authDb.getCachedUsersCount();
-                    }
+            long cachedUsers = 0;
+            if (plugin.getDatabaseProvider() instanceof AuthenticDatabaseProvider<?> authDb) {
+                cachedUsers = authDb.getCachedUsersCount();
+            }
 
-                    audience.sendMessage(getMessage("health.header"));
-                    audience.sendMessage(
-                            getMessage(
-                                    "health.platform",
-                                    "%platform%",
-                                    platformName,
-                                    "%version%",
-                                    plugin.getVersion()));
-                    audience.sendMessage(
-                            getMessage(
-                                    "health.memory",
-                                    "%used%",
-                                    String.valueOf(usedMemory),
-                                    "%max%",
-                                    String.valueOf(maxMemory),
-                                    "%free%",
-                                    String.valueOf(freeMemory)));
-                    audience.sendMessage(
-                            getMessage("health.database", "%status%", dbStatus, "%type%", dbType));
-                    audience.sendMessage(
-                            getMessage("health.caches", "%users%", String.valueOf(cachedUsers)));
-                    audience.sendMessage(getMessage("health.footer"));
-                });
+            audience.sendMessage(getMessage("health.header"));
+            audience.sendMessage(
+                    getMessage(
+                            "health.platform",
+                            "%platform%",
+                            platformName,
+                            "%version%",
+                            plugin.getVersion()));
+            audience.sendMessage(
+                    getMessage(
+                            "health.memory",
+                            "%used%",
+                            String.valueOf(usedMemory),
+                            "%max%",
+                            String.valueOf(maxMemory),
+                            "%free%",
+                            String.valueOf(freeMemory)));
+            audience.sendMessage(
+                    getMessage("health.database", "%status%", dbStatus, "%type%", dbType));
+            audience.sendMessage(
+                    getMessage("health.caches", "%users%", String.valueOf(cachedUsers)));
+            audience.sendMessage(getMessage("health.footer"));
+        });
     }
 
     /**
@@ -166,16 +160,14 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.email-test}")
     @CommandCompletion("%autocomplete.email-test")
     public CompletionStage<Void> onEmailTest(Audience audience, String email) {
-        return runAsync(
-                () -> {
-                    if (plugin.getEmailHandler() == null) {
-                        throw new InvalidCommandArgument(
-                                getMessage("error.password-resetting-disabled"));
-                    }
-                    audience.sendMessage(getMessage("info.sending-email"));
-                    plugin.getEmailHandler().sendTestMail(email);
-                    audience.sendMessage(getMessage("info.sent-email"));
-                });
+        return runAsync(() -> {
+            if (plugin.getEmailHandler() == null) {
+                throw new InvalidCommandArgument(getMessage("error.password-resetting-disabled"));
+            }
+            audience.sendMessage(getMessage("info.sending-email"));
+            plugin.getEmailHandler().sendTestMail(email);
+            audience.sendMessage(getMessage("info.sent-email"));
+        });
     }
 
     /**
@@ -187,110 +179,102 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Subcommand("dump")
     @CommandPermission("librelogin.admin.dump")
     public CompletionStage<Void> onDump(Audience audience) {
-        return runAsync(
-                () -> {
-                    audience.sendMessage(getMessage("info.dumping"));
+        return runAsync(() -> {
+            audience.sendMessage(getMessage("info.dumping"));
 
-                    var dumpFolder = new File(plugin.getDataFolder(), "dumps");
+            var dumpFolder = new File(plugin.getDataFolder(), "dumps");
 
-                    if (!dumpFolder.exists()) {
-                        dumpFolder.mkdirs();
-                    }
+            if (!dumpFolder.exists()) {
+                dumpFolder.mkdirs();
+            }
 
-                    var dumpFile =
-                            new File(
-                                    dumpFolder,
-                                    "dump-%date%.json"
-                                            .replace(
-                                                    "%date%",
-                                                    DateTimeFormatter.ofPattern(
-                                                                    "dd-MM-yyyy_HH-mm-ss")
-                                                            .format(LocalDateTime.now())));
+            var dumpFile =
+                    new File(
+                            dumpFolder,
+                            "dump-%date%.json"
+                                    .replace(
+                                            "%date%",
+                                            DateTimeFormatter.ofPattern("dd-MM-yyyy_HH-mm-ss")
+                                                    .format(LocalDateTime.now())));
 
-                    if (dumpFile.exists()) {
-                        dumpFile.delete();
-                    }
+            if (dumpFile.exists()) {
+                dumpFile.delete();
+            }
 
-                    try {
-                        dumpFile.createNewFile();
-                    } catch (IOException e) {
-                        plugin.getLogger()
-                                .error(
-                                        "Failed to create diagnostic dump file: "
-                                                + dumpFile.getPath(),
-                                        e);
-                        throw new InvalidCommandArgument(getMessage("error.unknown"));
-                    }
+            try {
+                dumpFile.createNewFile();
+            } catch (IOException e) {
+                plugin.getLogger()
+                        .error("Failed to create diagnostic dump file: " + dumpFile.getPath(), e);
+                throw new InvalidCommandArgument(getMessage("error.unknown"));
+            }
 
-                    var dump = new JsonObject();
+            var dump = new JsonObject();
 
-                    dump.addProperty("version", plugin.getVersion());
-                    dump.addProperty("date", DATE_TIME_FORMATTER.format(LocalDateTime.now()));
+            dump.addProperty("version", plugin.getVersion());
+            dump.addProperty("date", DATE_TIME_FORMATTER.format(LocalDateTime.now()));
 
-                    var server = new JsonObject();
-                    var proxyData = plugin.getPlatformHandle().getProxyData();
+            var server = new JsonObject();
+            var proxyData = plugin.getPlatformHandle().getProxyData();
 
-                    server.addProperty("name", proxyData.name());
-                    server.add("plugins", GSON.toJsonTree(proxyData.plugins()));
-                    server.add("servers", GSON.toJsonTree(proxyData.servers()));
-                    server.add("limbos", GSON.toJsonTree(proxyData.limbos()));
-                    server.add("lobbies", GSON.toJsonTree(proxyData.lobbies()));
+            server.addProperty("name", proxyData.name());
+            server.add("plugins", GSON.toJsonTree(proxyData.plugins()));
+            server.add("servers", GSON.toJsonTree(proxyData.servers()));
+            server.add("limbos", GSON.toJsonTree(proxyData.limbos()));
+            server.add("lobbies", GSON.toJsonTree(proxyData.lobbies()));
 
-                    var threads = new JsonObject();
-                    var mxBean = ManagementFactory.getThreadMXBean();
+            var threads = new JsonObject();
+            var mxBean = ManagementFactory.getThreadMXBean();
 
-                    for (ThreadInfo info : mxBean.dumpAllThreads(true, true)) {
-                        var thread = new JsonObject();
+            for (ThreadInfo info : mxBean.dumpAllThreads(true, true)) {
+                var thread = new JsonObject();
 
-                        thread.addProperty("id", info.getThreadId());
-                        thread.addProperty("name", info.getThreadName());
-                        thread.addProperty("state", info.getThreadState().name());
-                        thread.addProperty("priority", info.getPriority());
-                        thread.addProperty("isDaemon", info.isDaemon());
-                        thread.addProperty("isInNative", info.isInNative());
-                        thread.addProperty("isSuspended", info.isSuspended());
+                thread.addProperty("id", info.getThreadId());
+                thread.addProperty("name", info.getThreadName());
+                thread.addProperty("state", info.getThreadState().name());
+                thread.addProperty("priority", info.getPriority());
+                thread.addProperty("isDaemon", info.isDaemon());
+                thread.addProperty("isInNative", info.isInNative());
+                thread.addProperty("isSuspended", info.isSuspended());
 
-                        var lock = new JsonObject();
+                var lock = new JsonObject();
 
-                        if (info.getLockName() != null) {
-                            lock.addProperty("name", info.getLockName());
-                            lock.addProperty("ownerId", info.getLockOwnerId());
-                            lock.addProperty("ownerName", info.getLockOwnerName());
-                        }
+                if (info.getLockName() != null) {
+                    lock.addProperty("name", info.getLockName());
+                    lock.addProperty("ownerId", info.getLockOwnerId());
+                    lock.addProperty("ownerName", info.getLockOwnerName());
+                }
 
-                        thread.add("lock", lock);
+                thread.add("lock", lock);
 
-                        var stackTrace = new JsonArray();
+                var stackTrace = new JsonArray();
 
-                        for (StackTraceElement element : info.getStackTrace()) {
-                            stackTrace.add(
-                                    element.getClassName()
-                                            + "#"
-                                            + element.getMethodName()
-                                            + "#"
-                                            + element.getLineNumber());
-                        }
+                for (StackTraceElement element : info.getStackTrace()) {
+                    stackTrace.add(
+                            element.getClassName()
+                                    + "#"
+                                    + element.getMethodName()
+                                    + "#"
+                                    + element.getLineNumber());
+                }
 
-                        thread.add("stackTrace", stackTrace);
-                        threads.add(info.getThreadName(), thread);
-                    }
+                thread.add("stackTrace", stackTrace);
+                threads.add(info.getThreadName(), thread);
+            }
 
-                    server.add("threads", threads);
-                    dump.add("server", server);
+            server.add("threads", threads);
+            dump.add("server", server);
 
-                    try (var writer = new FileWriter(dumpFile)) {
-                        writer.write(GSON.toJson(dump));
-                    } catch (IOException e) {
-                        plugin.getLogger()
-                                .error(
-                                        "Failed to write diagnostic dump file: "
-                                                + dumpFile.getPath(),
-                                        e);
-                        throw new InvalidCommandArgument(getMessage("error.unknown"));
-                    }
+            try (var writer = new FileWriter(dumpFile)) {
+                writer.write(GSON.toJson(dump));
+            } catch (IOException e) {
+                plugin.getLogger()
+                        .error("Failed to write diagnostic dump file: " + dumpFile.getPath(), e);
+                throw new InvalidCommandArgument(getMessage("error.unknown"));
+            }
 
-                    audience.sendMessage(getMessage("info.dumped", "%file%", dumpFile.getPath()));
-                });
+            audience.sendMessage(getMessage("info.dumped", "%file%", dumpFile.getPath()));
+        });
     }
 
     /**
@@ -302,59 +286,55 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Subcommand("reload")
     @CommandPermission("librelogin.admin.reload")
     public CompletionStage<Void> onReload(Audience audience) {
-        return runAsync(
-                () -> {
-                    audience.sendMessage(getMessage("info.reloading"));
+        return runAsync(() -> {
+            audience.sendMessage(getMessage("info.reloading"));
 
-                    try {
-                        plugin.getConfiguration().reload(plugin);
-                    } catch (IOException e) {
-                        plugin.getLogger()
-                                .error("Failed to reload configuration file ('config.conf'):", e);
-                        throw new InvalidCommandArgument(getMessage("error.unknown"));
-                    } catch (CorruptedConfigurationException e) {
-                        var cause = GeneralUtil.getFurthestCause(e);
-                        throw new InvalidCommandArgument(
-                                getMessage(
-                                        "error.corrupted-configuration",
-                                        "%cause%",
-                                        "%s: %s"
-                                                .formatted(
-                                                        cause.getClass().getSimpleName(),
-                                                        cause.getMessage())));
-                    }
+            try {
+                plugin.getConfiguration().reload(plugin);
+            } catch (IOException e) {
+                plugin.getLogger().error("Failed to reload configuration file ('config.conf'):", e);
+                throw new InvalidCommandArgument(getMessage("error.unknown"));
+            } catch (CorruptedConfigurationException e) {
+                var cause = GeneralUtil.getFurthestCause(e);
+                throw new InvalidCommandArgument(
+                        getMessage(
+                                "error.corrupted-configuration",
+                                "%cause%",
+                                "%s: %s"
+                                        .formatted(
+                                                cause.getClass().getSimpleName(),
+                                                cause.getMessage())));
+            }
 
-                    try {
-                        plugin.getMessages().reload(plugin);
-                    } catch (IOException e) {
-                        plugin.getLogger()
-                                .error("Failed to reload messages file ('messages.conf'):", e);
-                        throw new InvalidCommandArgument(getMessage("error.unknown"));
-                    } catch (CorruptedConfigurationException e) {
-                        var cause = GeneralUtil.getFurthestCause(e);
-                        throw new InvalidCommandArgument(
-                                getMessage(
-                                        "error.corrupted-messages",
-                                        "%cause%",
-                                        "%s: %s"
-                                                .formatted(
-                                                        cause.getClass().getSimpleName(),
-                                                        cause.getMessage())));
-                    }
+            try {
+                plugin.getMessages().reload(plugin);
+            } catch (IOException e) {
+                plugin.getLogger().error("Failed to reload messages file ('messages.conf'):", e);
+                throw new InvalidCommandArgument(getMessage("error.unknown"));
+            } catch (CorruptedConfigurationException e) {
+                var cause = GeneralUtil.getFurthestCause(e);
+                throw new InvalidCommandArgument(
+                        getMessage(
+                                "error.corrupted-messages",
+                                "%cause%",
+                                "%s: %s"
+                                        .formatted(
+                                                cause.getClass().getSimpleName(),
+                                                cause.getMessage())));
+            }
 
-                    if (plugin.getServerHandler() instanceof AuthenticServerHandler<?, ?> ash) {
-                        ash.reload();
-                    }
-                    try {
-                        plugin.loadForbiddenPasswords();
-                    } catch (IOException e) {
-                        plugin.getLogger()
-                                .warn("Failed to reload forbidden passwords: {}", e.getMessage());
-                    }
+            if (plugin.getServerHandler() instanceof AuthenticServerHandler<?, ?> ash) {
+                ash.reload();
+            }
+            try {
+                plugin.loadForbiddenPasswords();
+            } catch (IOException e) {
+                plugin.getLogger().warn("Failed to reload forbidden passwords: {}", e.getMessage());
+            }
 
-                    plugin.getCommandProvider().injectMessages();
-                    audience.sendMessage(getMessage("info.reloaded"));
-                });
+            plugin.getCommandProvider().injectMessages();
+            audience.sendMessage(getMessage("info.reloaded"));
+        });
     }
 
     /**
@@ -366,40 +346,37 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Subcommand("reload config|reload configuration")
     @CommandPermission("librelogin.admin.reload")
     public CompletionStage<Void> onReloadConfiguration(Audience audience) {
-        return runAsync(
-                () -> {
-                    audience.sendMessage(getMessage("info.reloading"));
+        return runAsync(() -> {
+            audience.sendMessage(getMessage("info.reloading"));
 
-                    try {
-                        plugin.getConfiguration().reload(plugin);
-                    } catch (IOException e) {
-                        plugin.getLogger()
-                                .error("Failed to reload configuration file ('config.conf'):", e);
-                        throw new InvalidCommandArgument(getMessage("error.unknown"));
-                    } catch (CorruptedConfigurationException e) {
-                        var cause = GeneralUtil.getFurthestCause(e);
-                        throw new InvalidCommandArgument(
-                                getMessage(
-                                        "error.corrupted-configuration",
-                                        "%cause%",
-                                        "%s: %s"
-                                                .formatted(
-                                                        cause.getClass().getSimpleName(),
-                                                        cause.getMessage())));
-                    }
+            try {
+                plugin.getConfiguration().reload(plugin);
+            } catch (IOException e) {
+                plugin.getLogger().error("Failed to reload configuration file ('config.conf'):", e);
+                throw new InvalidCommandArgument(getMessage("error.unknown"));
+            } catch (CorruptedConfigurationException e) {
+                var cause = GeneralUtil.getFurthestCause(e);
+                throw new InvalidCommandArgument(
+                        getMessage(
+                                "error.corrupted-configuration",
+                                "%cause%",
+                                "%s: %s"
+                                        .formatted(
+                                                cause.getClass().getSimpleName(),
+                                                cause.getMessage())));
+            }
 
-                    if (plugin.getServerHandler() instanceof AuthenticServerHandler<?, ?> ash) {
-                        ash.reload();
-                    }
-                    try {
-                        plugin.loadForbiddenPasswords();
-                    } catch (IOException e) {
-                        plugin.getLogger()
-                                .warn("Failed to reload forbidden passwords: {}", e.getMessage());
-                    }
+            if (plugin.getServerHandler() instanceof AuthenticServerHandler<?, ?> ash) {
+                ash.reload();
+            }
+            try {
+                plugin.loadForbiddenPasswords();
+            } catch (IOException e) {
+                plugin.getLogger().warn("Failed to reload forbidden passwords: {}", e.getMessage());
+            }
 
-                    audience.sendMessage(getMessage("info.reloaded"));
-                });
+            audience.sendMessage(getMessage("info.reloaded"));
+        });
     }
 
     /**
@@ -411,31 +388,29 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Subcommand("reload messages")
     @CommandPermission("librelogin.admin.reload")
     public CompletionStage<Void> onReloadMessages(Audience audience) {
-        return runAsync(
-                () -> {
-                    audience.sendMessage(getMessage("info.reloading"));
+        return runAsync(() -> {
+            audience.sendMessage(getMessage("info.reloading"));
 
-                    try {
-                        plugin.getMessages().reload(plugin);
-                    } catch (IOException e) {
-                        plugin.getLogger()
-                                .error("Failed to reload messages file ('messages.conf'):", e);
-                        throw new InvalidCommandArgument(getMessage("error.unknown"));
-                    } catch (CorruptedConfigurationException e) {
-                        var cause = GeneralUtil.getFurthestCause(e);
-                        throw new InvalidCommandArgument(
-                                getMessage(
-                                        "error.corrupted-messages",
-                                        "%cause%",
-                                        "%s: %s"
-                                                .formatted(
-                                                        cause.getClass().getSimpleName(),
-                                                        cause.getMessage())));
-                    }
+            try {
+                plugin.getMessages().reload(plugin);
+            } catch (IOException e) {
+                plugin.getLogger().error("Failed to reload messages file ('messages.conf'):", e);
+                throw new InvalidCommandArgument(getMessage("error.unknown"));
+            } catch (CorruptedConfigurationException e) {
+                var cause = GeneralUtil.getFurthestCause(e);
+                throw new InvalidCommandArgument(
+                        getMessage(
+                                "error.corrupted-messages",
+                                "%cause%",
+                                "%s: %s"
+                                        .formatted(
+                                                cause.getClass().getSimpleName(),
+                                                cause.getMessage())));
+            }
 
-                    plugin.getCommandProvider().injectMessages();
-                    audience.sendMessage(getMessage("info.reloaded"));
-                });
+            plugin.getCommandProvider().injectMessages();
+            audience.sendMessage(getMessage("info.reloaded"));
+        });
     }
 
     /**
@@ -450,45 +425,39 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-info}")
     @CommandCompletion("%autocomplete.user-info")
     public CompletionStage<Void> onUserInfo(Audience audience, String name) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
 
-                    audience.sendMessage(
-                            getMessage(
-                                    "info.user",
-                                    "%name%",
-                                    user.getLastNickname(),
-                                    "%uuid%",
-                                    user.getUuid().toString(),
-                                    "%premium_uuid%",
-                                    user.getPremiumUUID() == null
-                                            ? text("info.value-na")
-                                            : user.getPremiumUUID().toString(),
-                                    "%last_seen%",
-                                    DATE_TIME_FORMATTER.format(
-                                            user.getLastSeen().toLocalDateTime()),
-                                    "%joined%",
-                                    DATE_TIME_FORMATTER.format(
-                                            user.getJoinDate().toLocalDateTime()),
-                                    "%2fa%",
-                                    text(
-                                            user.getSecret() != null
-                                                    ? "info.value-enabled"
-                                                    : "info.value-disabled"),
-                                    "%email%",
-                                    user.getEmail() == null
-                                            ? text("info.value-na")
-                                            : user.getEmail(),
-                                    "%ip%",
-                                    user.getIp() == null ? text("info.value-na") : user.getIp(),
-                                    "%last_authenticated%",
-                                    user.getLastAuthentication() == null
-                                            ? text("info.value-na")
-                                            : DATE_TIME_FORMATTER.format(
-                                                    user.getLastAuthentication()
-                                                            .toLocalDateTime())));
-                });
+            audience.sendMessage(
+                    getMessage(
+                            "info.user",
+                            "%name%",
+                            user.getLastNickname(),
+                            "%uuid%",
+                            user.getUuid().toString(),
+                            "%premium_uuid%",
+                            user.getPremiumUUID() == null
+                                    ? text("info.value-na")
+                                    : user.getPremiumUUID().toString(),
+                            "%last_seen%",
+                            DATE_TIME_FORMATTER.format(user.getLastSeen().toLocalDateTime()),
+                            "%joined%",
+                            DATE_TIME_FORMATTER.format(user.getJoinDate().toLocalDateTime()),
+                            "%2fa%",
+                            text(
+                                    user.getSecret() != null
+                                            ? "info.value-enabled"
+                                            : "info.value-disabled"),
+                            "%email%",
+                            user.getEmail() == null ? text("info.value-na") : user.getEmail(),
+                            "%ip%",
+                            user.getIp() == null ? text("info.value-na") : user.getIp(),
+                            "%last_authenticated%",
+                            user.getLastAuthentication() == null
+                                    ? text("info.value-na")
+                                    : DATE_TIME_FORMATTER.format(
+                                            user.getLastAuthentication().toLocalDateTime())));
+        });
     }
 
     /**
@@ -540,32 +509,38 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-migrate}")
     @CommandCompletion("%autocomplete.user-migrate")
     public CompletionStage<Void> onUserMigrate(Audience audience, String name, String newName) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
-                    var colliding = getDatabaseProvider().getByName(newName);
+        return runAsync(() -> {
+            // The pre-login check rejects any other name (spaces included), so the account would be
+            // unreachable.
+            if (!AuthenticListeners.isValidMinecraftUsername(newName)) {
+                throw new InvalidCommandArgument(
+                        getMessage("error.invalid-username", "%name%", newName));
+            }
 
-                    if (colliding != null && !colliding.getUuid().equals(user.getUuid())) {
-                        throw new InvalidCommandArgument(
-                                getMessage("error.occupied-user", "%name%", newName));
-                    }
+            var user = getUserOtherWiseInform(name);
+            var colliding = getDatabaseProvider().getByName(newName);
 
-                    requireOffline(user);
+            if (colliding != null && !colliding.getUuid().equals(user.getUuid())) {
+                throw new InvalidCommandArgument(
+                        getMessage("error.occupied-user", "%name%", newName));
+            }
 
-                    audience.sendMessage(getMessage("info.editing"));
+            requireOffline(user);
 
-                    user.setLastNickname(newName);
-                    if (user.getPremiumUUID() != null) {
-                        user.setPremiumUUID(null);
-                        plugin.getEventProvider()
-                                .unsafeFire(
-                                        plugin.getEventTypes().premiumLoginSwitch,
-                                        new AuthenticPremiumLoginSwitchEvent<>(user, null, plugin));
-                    }
-                    getDatabaseProvider().updateUser(user);
+            audience.sendMessage(getMessage("info.editing"));
 
-                    audience.sendMessage(getMessage("info.edited"));
-                });
+            user.setLastNickname(newName);
+            if (user.getPremiumUUID() != null) {
+                user.setPremiumUUID(null);
+                plugin.getEventProvider()
+                        .unsafeFire(
+                                plugin.getEventTypes().premiumLoginSwitch,
+                                new AuthenticPremiumLoginSwitchEvent<>(user, null, plugin));
+            }
+            getDatabaseProvider().updateUser(user);
+
+            audience.sendMessage(getMessage("info.edited"));
+        });
     }
 
     /**
@@ -580,23 +555,22 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-unregister}")
     @CommandCompletion("%autocomplete.user-unregister")
     public CompletionStage<Void> onUserUnregister(Audience audience, String name) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
 
-                    requireOffline(user);
+            requireOffline(user);
 
-                    audience.sendMessage(getMessage("info.editing"));
+            audience.sendMessage(getMessage("info.editing"));
 
-                    user.setHashedPassword(null);
-                    user.setSecret(null);
-                    user.setIp(null);
-                    user.setLastAuthentication(null);
-                    user.setPremiumUUID(null);
-                    getDatabaseProvider().updateUser(user);
+            user.setHashedPassword(null);
+            user.setSecret(null);
+            user.setIp(null);
+            user.setLastAuthentication(null);
+            user.setPremiumUUID(null);
+            getDatabaseProvider().updateUser(user);
 
-                    audience.sendMessage(getMessage("info.edited"));
-                });
+            audience.sendMessage(getMessage("info.edited"));
+        });
     }
 
     /**
@@ -611,18 +585,17 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-delete}")
     @CommandCompletion("%autocomplete.user-delete")
     public CompletionStage<Void> onUserDelete(Audience audience, String name) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
 
-                    requireOffline(user);
+            requireOffline(user);
 
-                    audience.sendMessage(getMessage("info.deleting"));
+            audience.sendMessage(getMessage("info.deleting"));
 
-                    getDatabaseProvider().deleteUser(user);
+            getDatabaseProvider().deleteUser(user);
 
-                    audience.sendMessage(getMessage("info.deleted"));
-                });
+            audience.sendMessage(getMessage("info.deleted"));
+        });
     }
 
     /**
@@ -638,22 +611,20 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-forget}")
     @CommandCompletion("%autocomplete.user-forget")
     public CompletionStage<Void> onUserForget(Audience audience, String name) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
-                    var player = getPossiblyOnlinePlayerOnThisProxy(user);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
+            var player = getPossiblyOnlinePlayerOnThisProxy(user);
 
-                    if (player != null) {
-                        plugin.getPlatformHandle()
-                                .kick(player, getMessage("kick.already-connected"));
-                    }
+            if (player != null) {
+                plugin.getPlatformHandle().kick(player, getMessage("kick.already-connected"));
+            }
 
-                    audience.sendMessage(getMessage("info.deleting"));
+            audience.sendMessage(getMessage("info.deleting"));
 
-                    getDatabaseProvider().deleteUser(user);
+            getDatabaseProvider().deleteUser(user);
 
-                    audience.sendMessage(getMessage("info.user-forgotten", "%name%", name));
-                });
+            audience.sendMessage(getMessage("info.user-forgotten", "%name%", name));
+        });
     }
 
     /**
@@ -668,24 +639,22 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-premium}")
     @CommandCompletion("%autocomplete.user-premium")
     public CompletionStage<Void> onUserPremium(Audience audience, String name) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
-                    var player = getPossiblyOnlinePlayerOnThisProxy(user);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
+            var player = getPossiblyOnlinePlayerOnThisProxy(user);
 
-                    audience.sendMessage(getMessage("info.editing"));
+            audience.sendMessage(getMessage("info.editing"));
 
-                    enablePremium(null, user, plugin, false);
+            enablePremium(null, user, plugin, false);
 
-                    getDatabaseProvider().updateUser(user);
+            getDatabaseProvider().updateUser(user);
 
-                    audience.sendMessage(getMessage("info.edited"));
+            audience.sendMessage(getMessage("info.edited"));
 
-                    if (player != null) {
-                        plugin.getPlatformHandle()
-                                .kick(player, getMessage("kick.premium-info-enabled"));
-                    }
-                });
+            if (player != null) {
+                plugin.getPlatformHandle().kick(player, getMessage("kick.premium-info-enabled"));
+            }
+        });
     }
 
     /**
@@ -700,29 +669,27 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-cracked}")
     @CommandCompletion("%autocomplete.user-cracked")
     public CompletionStage<Void> onUserCracked(Audience audience, String name) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
-                    var player = getPossiblyOnlinePlayerOnThisProxy(user);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
+            var player = getPossiblyOnlinePlayerOnThisProxy(user);
 
-                    if (!user.isRegistered()) {
-                        // A passwordless cracked account could be claimed by anyone.
-                        throw new InvalidCommandArgument(
-                                getMessage("error.cracked-requires-password-staff"));
-                    }
+            if (!user.isRegistered()) {
+                // A passwordless cracked account could be claimed by anyone.
+                throw new InvalidCommandArgument(
+                        getMessage("error.cracked-requires-password-staff"));
+            }
 
-                    audience.sendMessage(getMessage("info.editing"));
+            audience.sendMessage(getMessage("info.editing"));
 
-                    user.setPremiumUUID(null);
-                    getDatabaseProvider().updateUser(user);
+            user.setPremiumUUID(null);
+            getDatabaseProvider().updateUser(user);
 
-                    audience.sendMessage(getMessage("info.edited"));
+            audience.sendMessage(getMessage("info.edited"));
 
-                    if (player != null) {
-                        plugin.getPlatformHandle()
-                                .kick(player, getMessage("kick.premium-info-disabled"));
-                    }
-                });
+            if (player != null) {
+                plugin.getPlatformHandle().kick(player, getMessage("kick.premium-info-disabled"));
+            }
+        });
     }
 
     /**
@@ -739,41 +706,41 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-register}")
     @CommandCompletion("%autocomplete.user-register")
     public CompletionStage<Void> onUserRegister(Audience audience, String name, String password) {
-        return runAsync(
-                () -> {
-                    audience.sendMessage(getMessage("info.registering"));
+        return runAsync(() -> {
+            requireNoSpaces(password);
+            audience.sendMessage(getMessage("info.registering"));
 
-                    var user = getDatabaseProvider().getByName(name);
+            var user = getDatabaseProvider().getByName(name);
 
-                    if (user != null) {
-                        throw new InvalidCommandArgument(getMessage("error.occupied-user"));
-                    }
+            if (user != null) {
+                throw new InvalidCommandArgument(getMessage("error.occupied-user"));
+            }
 
-                    var hashedPassword = plugin.getDefaultCryptoProvider().createHash(password);
+            var hashedPassword = plugin.getDefaultCryptoProvider().createHash(password);
 
-                    if (hashedPassword == null) {
-                        throw new InvalidCommandArgument(getMessage("error.password-too-long"));
-                    }
-                    var premiumUser = plugin.getUserOrThrowICA(name);
-                    user =
-                            new AuthenticUser(
-                                    plugin.generateNewUUID(
-                                            name, premiumUser == null ? null : premiumUser.uuid()),
-                                    null,
-                                    hashedPassword,
-                                    name,
-                                    Timestamp.valueOf(LocalDateTime.now()),
-                                    Timestamp.valueOf(LocalDateTime.now()),
-                                    null,
-                                    null,
-                                    Timestamp.valueOf(LocalDateTime.now()),
-                                    null,
-                                    null);
+            if (hashedPassword == null) {
+                throw new InvalidCommandArgument(getMessage("error.password-too-long"));
+            }
+            var premiumUser = plugin.getUserOrThrowICA(name);
+            user =
+                    new AuthenticUser(
+                            plugin.generateNewUUID(
+                                    name, premiumUser == null ? null : premiumUser.uuid()),
+                            null,
+                            hashedPassword,
+                            name,
+                            Timestamp.valueOf(LocalDateTime.now()),
+                            Timestamp.valueOf(LocalDateTime.now()),
+                            null,
+                            null,
+                            Timestamp.valueOf(LocalDateTime.now()),
+                            null,
+                            null);
 
-                    getDatabaseProvider().insertUser(user);
+            getDatabaseProvider().insertUser(user);
 
-                    audience.sendMessage(getMessage("info.registered"));
-                });
+            audience.sendMessage(getMessage("info.registered"));
+        });
     }
 
     /**
@@ -788,21 +755,20 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-login}")
     @CommandCompletion("%autocomplete.user-login")
     public CompletionStage<Void> onUserLogin(Audience audience, String name) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
 
-                    var target = requireOnline(user);
-                    requireUnAuthorized(target);
-                    requireRegistered(user);
+            var target = requireOnline(user);
+            requireUnAuthorized(target);
+            requireRegistered(user);
 
-                    audience.sendMessage(getMessage("info.logging-in"));
+            audience.sendMessage(getMessage("info.logging-in"));
 
-                    plugin.getAuthorizationProvider()
-                            .authorize(user, target, AuthenticatedEvent.AuthenticationReason.LOGIN);
+            plugin.getAuthorizationProvider()
+                    .authorize(user, target, AuthenticatedEvent.AuthenticationReason.LOGIN);
 
-                    audience.sendMessage(getMessage("info.logged-in"));
-                });
+            audience.sendMessage(getMessage("info.logged-in"));
+        });
     }
 
     /**
@@ -817,18 +783,17 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-remove-2fa}")
     @CommandCompletion("%autocomplete.user-remove-2fa")
     public CompletionStage<Void> onUserRemove2FA(Audience audience, String name) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
 
-                    audience.sendMessage(getMessage("info.editing"));
+            audience.sendMessage(getMessage("info.editing"));
 
-                    user.setSecret(null);
-                    revokeSessions(user);
-                    getDatabaseProvider().updateUser(user);
+            user.setSecret(null);
+            revokeSessions(user);
+            getDatabaseProvider().updateUser(user);
 
-                    audience.sendMessage(getMessage("info.edited"));
-                });
+            audience.sendMessage(getMessage("info.edited"));
+        });
     }
 
     /**
@@ -843,17 +808,16 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-remove-email}")
     @CommandCompletion("%autocomplete.user-remove-email")
     public CompletionStage<Void> onUserRemoveEMail(Audience audience, String name) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
 
-                    audience.sendMessage(getMessage("info.editing"));
+            audience.sendMessage(getMessage("info.editing"));
 
-                    user.setEmail(null);
-                    getDatabaseProvider().updateUser(user);
+            user.setEmail(null);
+            getDatabaseProvider().updateUser(user);
 
-                    audience.sendMessage(getMessage("info.edited"));
-                });
+            audience.sendMessage(getMessage("info.edited"));
+        });
     }
 
     /**
@@ -869,21 +833,20 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-set-email}")
     @CommandCompletion("%autocomplete.user-set-email")
     public CompletionStage<Void> onUserSetEMail(Audience audience, String name, String email) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
 
-                    if (!GeneralUtil.isValidEmail(email)) {
-                        throw new InvalidCommandArgument(getMessage("error.invalid-email"));
-                    }
+            if (!GeneralUtil.isValidEmail(email)) {
+                throw new InvalidCommandArgument(getMessage("error.invalid-email"));
+            }
 
-                    audience.sendMessage(getMessage("info.editing"));
+            audience.sendMessage(getMessage("info.editing"));
 
-                    user.setEmail(email.trim());
-                    getDatabaseProvider().updateUser(user);
+            user.setEmail(email.trim());
+            getDatabaseProvider().updateUser(user);
 
-                    audience.sendMessage(getMessage("info.edited"));
-                });
+            audience.sendMessage(getMessage("info.edited"));
+        });
     }
 
     /**
@@ -901,22 +864,22 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @CommandCompletion("%autocomplete.user-set-password")
     public CompletionStage<Void> onUserSetPassword(
             Audience audience, String name, String password) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
-                    var old = user.getHashedPassword();
+        return runAsync(() -> {
+            requireNoSpaces(password);
+            var user = getUserOtherWiseInform(name);
+            var old = user.getHashedPassword();
 
-                    setPassword(audience, user, password, "info.editing");
+            setPassword(audience, user, password, "info.editing");
 
-                    getDatabaseProvider().updateUser(user);
+            getDatabaseProvider().updateUser(user);
 
-                    audience.sendMessage(getMessage("info.edited"));
+            audience.sendMessage(getMessage("info.edited"));
 
-                    plugin.getEventProvider()
-                            .unsafeFire(
-                                    plugin.getEventTypes().passwordChange,
-                                    new AuthenticPasswordChangeEvent<>(user, null, plugin, old));
-                });
+            plugin.getEventProvider()
+                    .unsafeFire(
+                            plugin.getEventTypes().passwordChange,
+                            new AuthenticPasswordChangeEvent<>(user, null, plugin, old));
+        });
     }
 
     /**
@@ -931,41 +894,46 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
     @Syntax("{@@syntax.user-alts}")
     @CommandCompletion("%autocomplete.user-alts")
     public CompletionStage<Void> onUserAlts(Audience audience, String name) {
-        return runAsync(
-                () -> {
-                    var user = getUserOtherWiseInform(name);
+        return runAsync(() -> {
+            var user = getUserOtherWiseInform(name);
 
-                    var alts = getDatabaseProvider().getByIP(user.getIp());
+            var alts = getDatabaseProvider().getByIP(user.getIp());
 
-                    if (alts.isEmpty()) {
-                        audience.sendMessage(getMessage("info.no-alts"));
-                        return;
-                    }
+            if (alts.isEmpty()) {
+                audience.sendMessage(getMessage("info.no-alts"));
+                return;
+            }
 
+            audience.sendMessage(getMessage("info.alts", "%count%", String.valueOf(alts.size())));
+
+            int shown = 0;
+            for (var alt : alts) {
+                if (shown++ == MAX_ALTS_SHOWN) {
                     audience.sendMessage(
-                            getMessage("info.alts", "%count%", String.valueOf(alts.size())));
+                            getMessage(
+                                    "info.alts-more",
+                                    "%count%",
+                                    String.valueOf(alts.size() - MAX_ALTS_SHOWN)));
+                    break;
+                }
+                audience.sendMessage(
+                        getMessage(
+                                "info.alts-entry",
+                                "%name%",
+                                alt.getLastNickname(),
+                                "%last_seen%",
+                                alt.getLastSeen() == null
+                                        ? text("info.value-na")
+                                        : DATE_TIME_FORMATTER.format(
+                                                alt.getLastSeen().toLocalDateTime())));
+            }
+        });
+    }
 
-                    int shown = 0;
-                    for (var alt : alts) {
-                        if (shown++ == MAX_ALTS_SHOWN) {
-                            audience.sendMessage(
-                                    getMessage(
-                                            "info.alts-more",
-                                            "%count%",
-                                            String.valueOf(alts.size() - MAX_ALTS_SHOWN)));
-                            break;
-                        }
-                        audience.sendMessage(
-                                getMessage(
-                                        "info.alts-entry",
-                                        "%name%",
-                                        alt.getLastNickname(),
-                                        "%last_seen%",
-                                        alt.getLastSeen() == null
-                                                ? text("info.value-na")
-                                                : DATE_TIME_FORMATTER.format(
-                                                        alt.getLastSeen().toLocalDateTime())));
-                    }
-                });
+    // /login reads the password as a single word, so a password with spaces could never be used.
+    private void requireNoSpaces(String password) {
+        if (password.chars().anyMatch(Character::isWhitespace)) {
+            throw new InvalidCommandArgument(getMessage("error.password-contains-spaces"));
+        }
     }
 }

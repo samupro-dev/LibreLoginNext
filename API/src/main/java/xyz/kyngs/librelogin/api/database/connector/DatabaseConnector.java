@@ -65,10 +65,9 @@ public interface DatabaseConnector<E extends Exception, I> {
      * @throws IllegalStateException if the database is not connected
      */
     default void runQuery(ThrowableConsumer<I, E> consumer) throws IllegalStateException {
-        runQuery(
-                i -> {
-                    consumer.accept(i);
-                    return null;
-                });
+        runQuery(i -> {
+            consumer.accept(i);
+            return null;
+        });
     }
 }

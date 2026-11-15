@@ -77,30 +77,27 @@ public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
                         .executor(pingExecutor)
                         .expireAfterWrite(30, TimeUnit.SECONDS)
                         .maximumSize(100)
-                        .build(
-                                server -> {
-                                    if (!plugin.getConfiguration().get(PING_SERVERS)) {
-                                        return Optional.of(new ServerPing(Integer.MAX_VALUE));
-                                    }
+                        .build(server -> {
+                            if (!plugin.getConfiguration().get(PING_SERVERS)) {
+                                return Optional.of(new ServerPing(Integer.MAX_VALUE));
+                            }
 
-                                    if (plugin.getLogger().isDebugEnabled()) {
-                                        plugin.getLogger()
-                                                .debug("Pinging backend server: " + server);
-                                    }
-                                    var ping = plugin.getPlatformHandle().ping(server);
-                                    if (plugin.getLogger().isDebugEnabled()) {
-                                        plugin.getLogger()
-                                                .debug("Ping response for " + server + ": " + ping);
-                                    }
+                            if (plugin.getLogger().isDebugEnabled()) {
+                                plugin.getLogger().debug("Pinging backend server: " + server);
+                            }
+                            var ping = plugin.getPlatformHandle().ping(server);
+                            if (plugin.getLogger().isDebugEnabled()) {
+                                plugin.getLogger()
+                                        .debug("Ping response for " + server + ": " + ping);
+                            }
 
-                                    if (ping == null) return Optional.empty();
-                                    return Optional.of(
-                                            plugin.getConfiguration()
-                                                            .get(
-                                                                    IGNORE_MAX_PLAYERS_FROM_BACKEND_PING)
-                                                    ? new ServerPing(Integer.MAX_VALUE)
-                                                    : ping);
-                                });
+                            if (ping == null) return Optional.empty();
+                            return Optional.of(
+                                    plugin.getConfiguration()
+                                                    .get(IGNORE_MAX_PLAYERS_FROM_BACKEND_PING)
+                                            ? new ServerPing(Integer.MAX_VALUE)
+                                            : ping);
+                        });
 
         pingRefreshTask =
                 plugin.repeat(() -> pingCache.refreshAll(pingCache.asMap().keySet()), 10000, 10000);
@@ -155,21 +152,20 @@ public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
 
         plugin.getConfiguration()
                 .get(LOBBY)
-                .forEach(
-                        (forced, server) -> {
-                            var s = handle.getServer(server, false);
-                            if (s != null) {
-                                pingCache.invalidate(s);
-                                getLatestPing(s);
-                                newLobby.put(forced, s);
-                            } else {
-                                plugin.getLogger()
-                                        .warn(
-                                                "Configured Lobby server/world '"
-                                                        + server
-                                                        + "' was not found!");
-                            }
-                        });
+                .forEach((forced, server) -> {
+                    var s = handle.getServer(server, false);
+                    if (s != null) {
+                        pingCache.invalidate(s);
+                        getLatestPing(s);
+                        newLobby.put(forced, s);
+                    } else {
+                        plugin.getLogger()
+                                .warn(
+                                        "Configured Lobby server/world '"
+                                                + server
+                                                + "' was not found!");
+                    }
+                });
 
         limboServers = newLimbo;
         lobbyServers = newLobby;
@@ -254,14 +250,12 @@ public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
         }
 
         return serverList.stream()
-                .filter(
-                        server -> {
-                            var ping = getLatestPing(server);
-                            return ping != null
-                                    && ping.maxPlayers()
-                                            > plugin.getPlatformHandle()
-                                                    .getConnectedPlayers(server);
-                        })
+                .filter(server -> {
+                    var ping = getLatestPing(server);
+                    return ping != null
+                            && ping.maxPlayers()
+                                    > plugin.getPlatformHandle().getConnectedPlayers(server);
+                })
                 .min(
                         Comparator.comparingInt(
                                 o -> plugin.getPlatformHandle().getConnectedPlayers(o)))
@@ -284,14 +278,12 @@ public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
         }
 
         return limboServers.stream()
-                .filter(
-                        server -> {
-                            var ping = getLatestPing(server);
-                            return ping != null
-                                    && ping.maxPlayers()
-                                            > plugin.getPlatformHandle()
-                                                    .getConnectedPlayers(server);
-                        })
+                .filter(server -> {
+                    var ping = getLatestPing(server);
+                    return ping != null
+                            && ping.maxPlayers()
+                                    > plugin.getPlatformHandle().getConnectedPlayers(server);
+                })
                 .min(
                         Comparator.comparingInt(
                                 o -> plugin.getPlatformHandle().getConnectedPlayers(o)))

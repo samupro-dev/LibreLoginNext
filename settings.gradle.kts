@@ -34,13 +34,6 @@ dependencyResolutionManagement {
             forRepository { maven("https://repo.codemc.io/repository/maven-releases/") { name = "codemc" } }
             filter { includeGroup("com.github.retrooper") }
         }
-        // Protocolize.
-        exclusiveContent {
-            forRepository {
-                maven("https://mvn.exceptionflug.de/repository/exceptionflug-public/") { name = "exceptionflug" }
-            }
-            filter { includeGroup("dev.simplix") }
-        }
         // Floodgate and its GeyserMC dependencies.
         exclusiveContent {
             forRepositories(

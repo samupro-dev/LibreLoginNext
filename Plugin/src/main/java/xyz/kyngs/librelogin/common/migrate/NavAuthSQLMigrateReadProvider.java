@@ -58,103 +58,91 @@ public class NavAuthSQLMigrateReadProvider extends SQLMigrateReadProvider {
 
     @Override
     public Collection<User> getAllUsers() {
-        return connector.runQuery(
-                connection -> {
-                    var credentials = readCredentials(connection);
-                    var activity = readActivity(connection);
-                    var users = new ArrayList<User>();
-                    var locked = new ArrayList<String>();
-                    var unreadable = 0;
+        return connector.runQuery(connection -> {
+            var credentials = readCredentials(connection);
+            var activity = readActivity(connection);
+            var users = new ArrayList<User>();
+            var locked = new ArrayList<String>();
+            var unreadable = 0;
 
-                    try (var ps = connection.prepareStatement("SELECT * FROM " + USERS_TABLE);
-                            var rs = ps.executeQuery()) {
-                        while (rs.next()) {
-                            var name = rs.getString("username");
-                            UUID uuid = null;
-                            try {
-                                var uuidRaw = rs.getString("uuid");
-                                uuid = UUID.fromString(uuidRaw);
-                                var mojangRaw = rs.getString("mojang_uuid");
-                                var premiumUuid =
-                                        mojangRaw == null ? null : UUID.fromString(mojangRaw);
+            try (var ps = connection.prepareStatement("SELECT * FROM " + USERS_TABLE);
+                    var rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    var name = rs.getString("username");
+                    UUID uuid = null;
+                    try {
+                        var uuidRaw = rs.getString("uuid");
+                        uuid = UUID.fromString(uuidRaw);
+                        var mojangRaw = rs.getString("mojang_uuid");
+                        var premiumUuid = mojangRaw == null ? null : UUID.fromString(mojangRaw);
 
-                                var credential = credentials.get(uuidRaw.toLowerCase(Locale.ROOT));
-                                HashedPassword password = null;
-                                String secret = null;
-                                if (credential != null) {
-                                    secret =
-                                            credential.secret() == null
-                                                            || credential.secret().isBlank()
-                                                    ? null
-                                                    : credential.secret();
-                                    if (credential.hash() != null) {
-                                        password =
-                                                toHashedPassword(
-                                                        credential.algo(), credential.hash());
-                                        if (password == null) {
-                                            password = locked(credential.hash());
-                                            locked.add(name);
-                                        }
-                                    }
-                                }
-                                if (premiumUuid == null && password == null) {
-                                    // 2FA-only or credential-less account: LibreLogin needs a
-                                    // password.
-                                    password = locked(null);
+                        var credential = credentials.get(uuidRaw.toLowerCase(Locale.ROOT));
+                        HashedPassword password = null;
+                        String secret = null;
+                        if (credential != null) {
+                            secret =
+                                    credential.secret() == null || credential.secret().isBlank()
+                                            ? null
+                                            : credential.secret();
+                            if (credential.hash() != null) {
+                                password = toHashedPassword(credential.algo(), credential.hash());
+                                if (password == null) {
+                                    password = locked(credential.hash());
                                     locked.add(name);
                                 }
-
-                                var session = activity.get(uuidRaw.toLowerCase(Locale.ROOT));
-                                users.add(
-                                        new AuthenticUser(
-                                                uuid,
-                                                premiumUuid,
-                                                password,
-                                                name,
-                                                session == null
-                                                        ? null
-                                                        : new Timestamp(session.joined()),
-                                                session == null
-                                                        ? null
-                                                        : new Timestamp(session.left()),
-                                                secret,
-                                                session == null ? null : ipv4(session.ip()),
-                                                null,
-                                                null,
-                                                null));
-                            } catch (RuntimeException e) {
-                                if (name == null || name.isEmpty() || uuid == null) {
-                                    logger.error(
-                                            "Failed to read a NavAuth user without a known"
-                                                    + " identity.",
-                                            e);
-                                    unreadable++;
-                                    continue;
-                                }
-                                logger.error(
-                                        "Failed to read NavAuth user "
-                                                + name
-                                                + "; importing it locked.",
-                                        e);
-                                users.add(lockedUser(uuid, name));
-                                locked.add(name);
                             }
                         }
-                    }
+                        if (premiumUuid == null && password == null) {
+                            // 2FA-only or credential-less account: LibreLogin needs a
+                            // password.
+                            password = locked(null);
+                            locked.add(name);
+                        }
 
-                    // Without a valid UUID an unreadable row cannot be locked, and leaving it out
-                    // could make its account claimable.
-                    if (unreadable > 0) {
-                        throw new IllegalStateException(
-                                "NavAuth migration aborted so no account becomes claimable: "
-                                        + unreadable
-                                        + " row(s) of navauth_users have an invalid UUID or no"
-                                        + " name. Fix these rows and run the migration again.");
+                        var session = activity.get(uuidRaw.toLowerCase(Locale.ROOT));
+                        users.add(
+                                new AuthenticUser(
+                                        uuid,
+                                        premiumUuid,
+                                        password,
+                                        name,
+                                        session == null ? null : new Timestamp(session.joined()),
+                                        session == null ? null : new Timestamp(session.left()),
+                                        secret,
+                                        session == null ? null : ipv4(session.ip()),
+                                        null,
+                                        null,
+                                        null));
+                    } catch (RuntimeException e) {
+                        if (name == null || name.isEmpty() || uuid == null) {
+                            logger.error(
+                                    "Failed to read a NavAuth user without a known" + " identity.",
+                                    e);
+                            unreadable++;
+                            continue;
+                        }
+                        logger.error(
+                                "Failed to read NavAuth user " + name + "; importing it locked.",
+                                e);
+                        users.add(lockedUser(uuid, name));
+                        locked.add(name);
                     }
+                }
+            }
 
-                    warnLocked("NavAuth", locked);
-                    return users;
-                });
+            // Without a valid UUID an unreadable row cannot be locked, and leaving it out
+            // could make its account claimable.
+            if (unreadable > 0) {
+                throw new IllegalStateException(
+                        "NavAuth migration aborted so no account becomes claimable: "
+                                + unreadable
+                                + " row(s) of navauth_users have an invalid UUID or no"
+                                + " name. Fix these rows and run the migration again.");
+            }
+
+            warnLocked("NavAuth", locked);
+            return users;
+        });
     }
 
     /**
