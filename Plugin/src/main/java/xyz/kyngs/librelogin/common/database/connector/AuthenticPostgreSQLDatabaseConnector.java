@@ -120,9 +120,18 @@ public class AuthenticPostgreSQLDatabaseConnector
                 new ConfigurationKey<>(
                         "properties",
                         java.util.Map.of(),
-                        "Extra connection properties passed to the PostgreSQL driver, for example {"
-                            + " ApplicationName = \"LibreLogin\" }. They are applied last and can"
-                            + " override the defaults above.",
+                        "Extra connection properties passed to the PostgreSQL driver, as strings."
+                                + " They are applied last and can override the defaults above.\n"
+                                + "Example (use only the ones you need; timeouts are in seconds,"
+                                + " sslrootcert is used with sslmode verify-ca or verify-full):\n"
+                                + "properties {\n"
+                                + "    ApplicationName = \"LibreLogin\"\n"
+                                + "    connectTimeout = \"10\"\n"
+                                + "    socketTimeout = \"60\"\n"
+                                + "    tcpKeepAlive = \"true\"\n"
+                                + "    currentSchema = \"librelogin\"\n"
+                                + "    sslrootcert = \"/path/to/root.crt\"\n"
+                                + "}",
                         ConfigurateHelper::getStringMap);
 
         public static final ConfigurationKey<String> HOST =

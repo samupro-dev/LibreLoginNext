@@ -178,9 +178,20 @@ public class AuthenticMySQLDatabaseConnector
                 new ConfigurationKey<>(
                         "properties",
                         java.util.Map.of(),
-                        "Extra connection properties passed to the MariaDB/MySQL driver, for"
-                            + " example { allowPublicKeyRetrieval = \"true\" }. They are applied"
-                            + " last and can override the defaults above.",
+                        "Extra connection properties passed to the MariaDB/MySQL driver, as"
+                            + " strings. They are applied last and can override the defaults"
+                            + " above.\n"
+                            + "Example (use only the ones you need; timeouts are in milliseconds,"
+                            + " serverSslCert is used with sslmode verify-ca or verify-full):\n"
+                            + "properties {\n"
+                            + "    allowPublicKeyRetrieval = \"true\"\n"
+                            + "    connectTimeout = \"10000\"\n"
+                            + "    socketTimeout = \"60000\"\n"
+                            + "    tcpKeepAlive = \"true\"\n"
+                            + "    useCompression = \"true\"\n"
+                            + "    sessionVariables = \"wait_timeout=28800\"\n"
+                            + "    serverSslCert = \"/path/to/server-ca.pem\"\n"
+                            + "}",
                         ConfigurateHelper::getStringMap);
 
         public static final ConfigurationKey<String> SSL_MODE =
