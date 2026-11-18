@@ -430,10 +430,14 @@ public class AuthenticListeners<Plugin extends AuthenticLibreLogin<P, S>, P, S> 
             var rawIpStr = ip != null ? ip.getHostAddress() : "127.0.0.1";
             var storedIp = plugin.anonymizeIP(rawIpStr);
             if (ipLimit > 0) {
+                // Only the number matters: count in the database instead of loading every row.
+                var database = plugin.getDatabaseProvider();
                 var ipCount =
-                        plugin.getDatabaseProvider().getByIP(storedIp).stream()
-                                .filter(User::isRegistered)
-                                .count();
+                        database instanceof AuthenticDatabaseProvider<?> provider
+                                ? provider.countRegisteredByIP(storedIp)
+                                : database.getByIP(storedIp).stream()
+                                        .filter(User::isRegistered)
+                                        .count();
 
                 if (ipCount >= ipLimit) {
                     throw new InvalidCommandArgument(

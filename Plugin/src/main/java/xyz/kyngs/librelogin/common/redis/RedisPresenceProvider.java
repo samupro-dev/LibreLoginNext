@@ -130,7 +130,8 @@ public class RedisPresenceProvider {
             var count = future.get(500, TimeUnit.MILLISECONDS);
             return count != null && count > 0;
         } catch (Throwable t) {
-            return false;
+            // Unknown counts as online: callers use this to refuse editing an account in use.
+            return true;
         }
     }
 

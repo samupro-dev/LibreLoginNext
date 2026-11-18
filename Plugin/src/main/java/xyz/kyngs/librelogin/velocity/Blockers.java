@@ -76,7 +76,25 @@ public class Blockers {
             return;
         }
 
-        var raw = event.getCommand().trim();
+        if (isAllowedWhileUnauthorized(event.getCommand(), configuration)) {
+            return;
+        }
+
+        event.setResult(CommandExecuteEvent.CommandResult.denied());
+        player.sendMessage(VelocityAudience.toNative(messages.getMessage("error.not-authorized")));
+    }
+
+    /**
+     * Whether a command may run before the player has logged in
+     * (allowed-commands-while-unauthorized).
+     *
+     * @param commandLine the command line, with or without the leading slash
+     * @param configuration the plugin configuration
+     * @return true if the command is allowed
+     */
+    static boolean isAllowedWhileUnauthorized(
+            String commandLine, HoconPluginConfiguration configuration) {
+        var raw = commandLine.trim();
         if (raw.startsWith("/")) {
             raw = raw.substring(1).trim();
         }
@@ -88,12 +106,10 @@ public class Blockers {
                 configuration.get(ConfigurationKeys.ALLOWED_COMMANDS_WHILE_UNAUTHORIZED)) {
             var lowerAllowed = allowed.toLowerCase(Locale.ROOT);
             if (command.equals(lowerAllowed) || strippedCommand.equals(lowerAllowed)) {
-                return;
+                return true;
             }
         }
-
-        event.setResult(CommandExecuteEvent.CommandResult.denied());
-        player.sendMessage(VelocityAudience.toNative(messages.getMessage("error.not-authorized")));
+        return false;
     }
 
     /**

@@ -276,7 +276,7 @@ public final class ConfigurationKeys {
                     "milliseconds-to-refresh-notification",
                     10000,
                     """
-                    Interval in milliseconds between repetitive chat and title authentication reminders.
+                    Interval in milliseconds between repetitive chat and title authentication reminders. Changing it requires a restart; /librelogin reload does not apply it.
                     """,
                     ConfigurateHelper::getInt);
 
@@ -355,7 +355,7 @@ public final class ConfigurationKeys {
             ConfigurationKey.getComment(
                     "database",
                     """
-                    Primary persistence storage configuration for user credentials and profiles.
+                    Primary persistence storage configuration for user credentials and profiles. Changes to this section require a restart; /librelogin reload does not apply them.
                     """);
 
     public static final ConfigurationKey<String> DATABASE_TYPE =
@@ -428,7 +428,7 @@ public final class ConfigurationKeys {
                     "totp.enabled",
                     true,
                     """
-                    Enable TOTP 2FA (/2fa, /2fa confirm).
+                    Enable TOTP 2FA (/2fa, /2fa confirm). Changing it requires a restart; /librelogin reload does not apply it.
                     """,
                     ConfigurateHelper::getBoolean);
 
@@ -450,6 +450,24 @@ public final class ConfigurationKeys {
                     """,
                     ConfigurateHelper::getInt);
 
+    public static final ConfigurationKey<?> DIALOGS =
+            ConfigurationKey.getComment(
+                    "dialogs",
+                    """
+                    Login and registration dialogs (Minecraft 1.21.6+). Bedrock players joining through Geyser without Floodgate get them as forms.
+                    Requires PacketEvents (always installed on Paper, optional on Velocity) and, on Paper, a 1.21.6+ server. Other players keep using /login and /register in chat.
+                    """);
+
+    public static final ConfigurationKey<Boolean> DIALOGS_ENABLED =
+            new ConfigurationKey<>(
+                    "dialogs.enabled",
+                    false,
+                    """
+                    Show a login or registration dialog to players who can display it (with a \"Forgot password?\" button when email is enabled), and open a dialog for /changepassword and /unregister typed without arguments. The chat prompt and all commands still work.
+                    Changing it requires a restart; /librelogin reload does not apply it.
+                    """,
+                    ConfigurateHelper::getBoolean);
+
     public static final ConfigurationKey<?> MAIL =
             ConfigurationKey.getComment(
                     "mail",
@@ -462,7 +480,7 @@ public final class ConfigurationKeys {
                     "mail.enabled",
                     false,
                     """
-                    Enable email recovery features.
+                    Enable email recovery features. Changing it requires a restart; /librelogin reload does not apply it.
                     """,
                     ConfigurateHelper::getBoolean);
 
@@ -480,7 +498,8 @@ public final class ConfigurationKeys {
                     "mail.port",
                     587,
                     """
-                    The port of the SMTP server.
+                    The port of the SMTP server. 465 uses TLS from the start and 587 requires STARTTLS, both with certificate verification.
+                    Any other port uses STARTTLS when the server offers it, without certificate verification, and plain text otherwise.
                     """,
                     ConfigurateHelper::getInt);
 
@@ -525,7 +544,7 @@ public final class ConfigurationKeys {
                     "redis.enabled",
                     false,
                     """
-                    Enable Redis distributed synchronization.
+                    Enable Redis distributed synchronization. Changes to the redis section require a restart; /librelogin reload does not apply them.
                     """,
                     ConfigurateHelper::getBoolean);
 

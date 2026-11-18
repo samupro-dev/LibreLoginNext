@@ -27,6 +27,8 @@ import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 import xyz.kyngs.librelogin.common.JULLogger;
 import xyz.kyngs.librelogin.common.SLF4JLogger;
 import xyz.kyngs.librelogin.common.ShutdownException;
+import xyz.kyngs.librelogin.common.dialog.AuthDialogs;
+import xyz.kyngs.librelogin.common.dialog.PacketEventsAuthDialogs;
 import xyz.kyngs.librelogin.common.image.AuthenticImageProjector;
 import xyz.kyngs.librelogin.common.image.packetevents.PacketEventsImageProjector;
 import xyz.kyngs.librelogin.common.util.CancellableTask;
@@ -306,6 +308,12 @@ public class PaperLibreLogin extends AuthenticLibreLogin<Player, World> {
     protected AuthenticImageProjector<Player, World> provideImageProjector() {
         // PacketEvents is a required dependency on Paper, so QR maps are always available.
         return new PacketEventsImageProjector<>(this);
+    }
+
+    @Override
+    protected AuthDialogs<Player> provideAuthDialogs() {
+        // PacketEvents encodes with the server version here, which must support dialogs too.
+        return new PacketEventsAuthDialogs<>(this, true, Player::hasPermission);
     }
 
     @Override

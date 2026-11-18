@@ -30,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
 import xyz.kyngs.librelogin.api.Logger;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 import xyz.kyngs.librelogin.common.config.ConfigurationKeys;
+import xyz.kyngs.librelogin.common.database.provider.LibreLoginSQLDatabaseProvider;
 
 /**
  * Manages the native Lettuce Redis client connection lifecycle, presence provider, and pub/sub
@@ -152,12 +153,14 @@ public class RedisService {
                         public void onRedisConnected(
                                 RedisChannelHandler<?, ?> conn, SocketAddress socketAddress) {
                             connected = true;
+                            invalidateUserCaches();
                             logger.info("Redis connection established with " + socketAddress);
                         }
 
                         @Override
                         public void onRedisDisconnected(RedisChannelHandler<?, ?> conn) {
                             connected = false;
+                            invalidateUserCaches();
                             logger.warn(
                                     "Redis connection disconnected! Falling back to local"
                                             + " standalone mode.");
@@ -278,6 +281,13 @@ public class RedisService {
                 clientResources.shutdown(100, 300, TimeUnit.MILLISECONDS);
             } catch (Throwable ignored) {
             }
+        }
+    }
+
+    // Invalidations published while the connection was down never arrive: start from the database.
+    private void invalidateUserCaches() {
+        if (plugin.getDatabaseProvider() instanceof LibreLoginSQLDatabaseProvider provider) {
+            provider.invalidateAllUsers();
         }
     }
 }

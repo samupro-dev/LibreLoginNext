@@ -63,6 +63,16 @@ Premium (Alex): verified Mojang session  ➜  instant lobby access
 Cracked (Steve): unregistered account    ➜  guided to /register
 ```
 
+### 🪟 Login and registration dialogs
+Players on **Minecraft 1.21.6+** get a login or registration window instead of having to type commands: a password field (accounts with 2FA get a second window for the code), a confirm button and a disconnect button. Wrong passwords and other errors are shown in the same window, and while it is open the repeated chat reminders, titles and action bars are not sent.
+
+- Bedrock players joining through **Geyser without Floodgate** get the same windows as Bedrock forms. Floodgate players are authorized automatically and never need to log in.
+- Requires PacketEvents (always installed on Paper, optional on Velocity) and, on Paper, a 1.21.6+ server. Older clients keep using `/login` and `/register` in chat, which stay available for everyone.
+- With email enabled, the login window has a **Forgot password?** button that sends the reset code and asks for the code and the new password.
+- `/changepassword` and `/unregister` typed without arguments open a window too.
+- Off by default: enable with `dialogs.enabled = true` in `config.conf`; all texts are in the `dialog` section of `messages.conf`.
+- The password is visible while it is typed in the window, as it is in chat.
+
 ### 📱 In-game 2FA map projection
 On **Paper** and on **Velocity with [PacketEvents](https://modrinth.com/plugin/packetevents)**, players hold a generated Minecraft map that displays their 2FA QR code directly in-game — no need to switch windows or open a browser. On Velocity without PacketEvents (and for 1.7–1.12 clients) the secret key is shown in chat for manual entry.
 
@@ -96,7 +106,7 @@ Connect multiple Velocity proxies into one unified network with instant cache up
 | **Velocity** | `3.x` & `4.x` | ✅ Primary target | Async non-blocking pipeline, in-game 2FA maps (with PacketEvents), Redis clustering. |
 | **Paper** | `1.13.2` – `26.3` | ✅ Fully supported | Proxy detection, spawn-location handling, packet listeners, in-game 2FA maps. Requires **PacketEvents**. |
 | **Client protocols** | `1.7` – `26.3` | ✅ Universal | Full authentication and session support. |
-| **Bedrock Edition** | Floodgate `2.2.5+` | ✅ Compatible | Automatic Floodgate UUID detection and cracked/premium resolution bypass. |
+| **Bedrock Edition** | Floodgate `2.2.5+` | ✅ Compatible | Automatic Floodgate UUID detection and cracked/premium resolution bypass. Geyser players without Floodgate get the login dialogs as Bedrock forms. |
 | **BungeeCord** | — | ❌ Not supported | Use Velocity instead. |
 | **Java runtime** | 17 – 25 | ✅ Verified | Compiled to Java 17 bytecode; tested on JDK 17, 21 and 25. |
 
@@ -104,7 +114,7 @@ Connect multiple Velocity proxies into one unified network with instant cache up
 
 ### Velocity (network)
 1. Download the latest LibreLogin Next jar from [SpigotMC](https://www.spigotmc.org/resources/139932/) or [build it yourself](#building-from-source).
-2. Put the jar in the proxy's `plugins/` folder — **do not** install it on the backend servers. Add [PacketEvents](https://modrinth.com/plugin/packetevents) (Velocity build) to enable in-game 2FA QR maps.
+2. Put the jar in the proxy's `plugins/` folder — **do not** install it on the backend servers. Add [PacketEvents](https://modrinth.com/plugin/packetevents) (Velocity build) to enable in-game 2FA QR maps and login dialogs.
 3. Start the proxy once to generate the configuration.
 4. Set the `limbo` server(s) where players authenticate and the `lobby` servers they are sent to afterwards.
 5. Configure a shared database (MySQL/MariaDB or PostgreSQL) and, for multiple proxies, enable Redis.
@@ -269,7 +279,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.github.samupro-dev.LibreLoginNext:API:0.26.3")
+    compileOnly("com.github.samupro-dev.LibreLoginNext:API:0.26.4")
 }
 ```
 

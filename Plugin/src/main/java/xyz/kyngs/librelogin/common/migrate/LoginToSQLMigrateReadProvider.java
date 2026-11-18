@@ -116,10 +116,8 @@ public class LoginToSQLMigrateReadProvider extends SQLMigrateReadProvider {
                         }
 
                         if (nickname == null || nickname.isEmpty()) {
-                            // LoginTo 4.x stores no player names. A cracked account cannot
-                            // be
-                            // mapped to a name, and leaving it out would let anyone
-                            // register
+                            // LoginTo 4.x stores no player names. A cracked account cannot be
+                            // mapped to a name, and leaving it out would let anyone register
                             // that name and inherit its offline-UUID data.
                             nameless++;
                             continue;
@@ -153,6 +151,12 @@ public class LoginToSQLMigrateReadProvider extends SQLMigrateReadProvider {
                             // LoginTo keys premium players by their online UUID.
                             premiumUuid = uuid;
                         }
+                        if (password == null && premiumUuid == null) {
+                            // A cracked account without a password would be claimable by
+                            // anyone with the old owner's 2FA secret and email attached.
+                            password = locked(null);
+                            locked.add(nickname);
+                        }
 
                         var lastSeen =
                                 getOptionalTimestamp(rs, "last_seen", "last_login", "lastlogin");
@@ -182,8 +186,7 @@ public class LoginToSQLMigrateReadProvider extends SQLMigrateReadProvider {
                     } catch (Exception e) {
                         if (nickname == null || nickname.isEmpty() || uuid == null) {
                             logger.error(
-                                    "Failed to read a LoginTo row without a known" + " identity.",
-                                    e);
+                                    "Failed to read a LoginTo row without a known identity.", e);
                             unreadable++;
                             continue;
                         }
@@ -197,8 +200,7 @@ public class LoginToSQLMigrateReadProvider extends SQLMigrateReadProvider {
                     }
                 }
 
-                // A row without a name cannot be locked: its UUID stays claimable by
-                // whoever
+                // A row without a name cannot be locked: its UUID stays claimable by whoever
                 // registers the matching name, so the whole migration is aborted instead.
                 if (nameless > 0 || unreadable > 0) {
                     throw new IllegalStateException(
@@ -207,8 +209,8 @@ public class LoginToSQLMigrateReadProvider extends SQLMigrateReadProvider {
                                     + " row(s) have no player name (LoginTo 4.x does not"
                                     + " store names) and "
                                     + unreadable
-                                    + " row(s) could not be read. Only tables that include"
-                                    + " a name column can be migrated.");
+                                    + " row(s) could not be read. Only tables that include a"
+                                    + " name column can be migrated.");
                 }
 
                 warnLocked("LoginTo", locked);

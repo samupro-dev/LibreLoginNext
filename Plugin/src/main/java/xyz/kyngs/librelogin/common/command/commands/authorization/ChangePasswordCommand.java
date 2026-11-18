@@ -10,9 +10,11 @@ import co.aikar.commands.annotation.CommandAlias;
 import co.aikar.commands.annotation.CommandCompletion;
 import co.aikar.commands.annotation.CommandPermission;
 import co.aikar.commands.annotation.Default;
+import co.aikar.commands.annotation.Optional;
 import co.aikar.commands.annotation.Private;
 import co.aikar.commands.annotation.Single;
 import co.aikar.commands.annotation.Syntax;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import xyz.kyngs.librelogin.api.event.events.WrongPasswordEvent.AuthenticationSource;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
@@ -53,7 +55,16 @@ public class ChangePasswordCommand<P> extends Command<P> {
     @Syntax("{@@syntax.change-password}")
     @CommandCompletion("%autocomplete.change-password")
     public CompletionStage<Void> onPasswordChange(
-            Audience sender, @Single String oldPass, @Single String newPass) {
+            Audience sender, @Single @Optional String oldPass, @Single @Optional String newPass) {
+        if (oldPass == null || newPass == null) {
+            var player = getPlayer(sender);
+            checkAuthorized(player);
+            var dialogs = plugin.getAuthDialogs();
+            if (dialogs != null && dialogs.showChangePassword(player)) {
+                return CompletableFuture.completedFuture(null);
+            }
+            throw new co.aikar.commands.InvalidCommandArgument(true);
+        }
         return runAsync(() -> {
             var player = getPlayer(sender);
             checkAuthorized(player);

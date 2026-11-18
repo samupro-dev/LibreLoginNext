@@ -258,11 +258,12 @@ class MigrateReadProvidersTest {
             }
             execute(connection, "INSERT INTO authme VALUES ('erin', 'Erin', ?)", bcrypt);
             execute(connection, "INSERT INTO authme VALUES ('frank', 'Frank', '$MD5$unsupported')");
+            execute(connection, "INSERT INTO authme VALUES ('gina', 'Gina', NULL)");
 
             var users =
                     new AuthMeSQLMigrateReadProvider("authme", NO_OP, connector(connection))
                             .getAllUsers();
-            assertEquals(2, users.size());
+            assertEquals(3, users.size());
             User erin =
                     users.stream()
                             .filter(u -> u.getLastNickname().equals("Erin"))
@@ -276,6 +277,14 @@ class MigrateReadProvidersTest {
                             .orElseThrow();
             assertTrue(frank.isRegistered());
             assertEquals(SQLMigrateReadProvider.LOCKED_ALGORITHM, frank.getHashedPassword().algo());
+            // No password: locked too, so nobody can /register the name.
+            User gina =
+                    users.stream()
+                            .filter(u -> u.getLastNickname().equals("Gina"))
+                            .findFirst()
+                            .orElseThrow();
+            assertTrue(gina.isRegistered());
+            assertEquals(SQLMigrateReadProvider.LOCKED_ALGORITHM, gina.getHashedPassword().algo());
         }
     }
 

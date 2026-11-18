@@ -51,6 +51,8 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
     // interned-string monitor (which other code could share and which was held across DB I/O).
     private final Set<UUID> authorizing;
     private final Map<UUID, String> awaiting2FA;
+    // Serializes the session check of authorize() with startTracking() of a newer session.
+    private final Object stateLock = new Object();
     private final Cache<UUID, EmailVerifyData> emailConfirmCache;
     private final Cache<UUID, String> passwordResetCache;
 
@@ -155,6 +157,8 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
         stopTracking(uuid);
         awaiting2FA.remove(uuid);
         authorized.remove(uuid);
+        var dialogs = plugin.getAuthDialogs();
+        if (dialogs != null) dialogs.forget(uuid);
         // Retain emailConfirmCache and passwordResetCache across disconnects until their natural
         // 10-minute TTL
     }
@@ -193,10 +197,15 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
             user.setIp(plugin.anonymizeIP(platformHandle.getIP(player)));
             plugin.getDatabaseProvider().updateUser(user);
 
-            stopTracking(uuid);
-            authorized.add(uuid);
-            awaiting2FA.remove(uuid);
-            plugin.cancelTasksForPlayer(uuid);
+            synchronized (stateLock) {
+                // The player may have left, and a new session with the same UUID may have started
+                // tracking, during the write: never hand this authorization to that session.
+                if (plugin.getPlayerForUUID(uuid) != player) return;
+                stopTracking(uuid);
+                authorized.add(uuid);
+                awaiting2FA.remove(uuid);
+                plugin.cancelTasksForPlayer(uuid);
+            }
             kickOtherProxySessions(uuid);
 
             var audience = platformHandle.getAudienceForPlayer(player);
@@ -205,6 +214,8 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
                 audience.clearTitle();
                 audience.sendActionBar(Component.empty());
             }
+            var dialogs = plugin.getAuthDialogs();
+            if (dialogs != null) dialogs.clear(player);
             plugin.getEventProvider()
                     .fire(
                             plugin.getEventTypes().authenticated,
@@ -246,8 +257,10 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
         if (uuid == null) return;
         var audience = platformHandle.getAudienceForPlayer(player);
 
-        authorized.remove(uuid);
-        unAuthorized.put(uuid, user.isRegistered());
+        synchronized (stateLock) {
+            authorized.remove(uuid);
+            unAuthorized.put(uuid, user.isRegistered());
+        }
 
         var limit = plugin.getConfiguration().get(ConfigurationKeys.SECONDS_TO_AUTHORIZE);
 
@@ -263,7 +276,7 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
                     player);
         }
 
-        sendInitialPrompt(uuid, user.isRegistered(), player, audience, 0);
+        sendInitialPrompt(uuid, user, player, audience, 0);
     }
 
     /**
@@ -271,27 +284,40 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
      * event fires before the backend connection, and commands typed before that are dropped by the
      * proxy, so prompting earlier invites commands that are never executed.
      */
-    private void sendInitialPrompt(
-            UUID uuid, boolean registered, P player, Audience audience, int attempt) {
+    private void sendInitialPrompt(UUID uuid, User user, P player, Audience audience, int attempt) {
         if (!unAuthorized.containsKey(uuid)) return;
         if (platformHandle.getPlayersServerName(player) == null
                 && attempt < INITIAL_PROMPT_ATTEMPTS) {
             plugin.cancelOnExit(
                     plugin.delay(
-                            () ->
-                                    sendInitialPrompt(
-                                            uuid, registered, player, audience, attempt + 1),
+                            () -> sendInitialPrompt(uuid, user, player, audience, attempt + 1),
                             INITIAL_PROMPT_RETRY_MILLIS),
                     player);
             return;
         }
-        sendInfoMessage(registered, audience);
+        var dialogs = plugin.getAuthDialogs();
+        boolean dialogShown = dialogs != null && dialogs.show(player, user.isRegistered(), null);
+        // The first chat line is always sent: the server cannot tell whether the client really
+        // displayed the dialog. The title would only sit behind the dialog.
+        sendInfoMessage(user.isRegistered(), audience, !dialogShown);
+    }
+
+    /**
+     * Whether a player currently sees a login or registration dialog instead of the chat.
+     *
+     * @param uuid the player's UUID
+     * @return true if a dialog is open
+     */
+    private boolean dialogOpen(UUID uuid) {
+        var dialogs = plugin.getAuthDialogs();
+        return dialogs != null && dialogs.isOpen(uuid);
     }
 
     /** Periodically broadcasts action bar prompts to all currently unauthorized players. */
     private void broadcastActionbars() {
         if (!plugin.getConfiguration().get(ConfigurationKeys.USE_ACTION_BAR)) return;
         unAuthorized.forEach((uuid, registered) -> {
+            if (dialogOpen(uuid)) return;
             var player = plugin.getPlayerForUUID(uuid);
             if (player == null) return;
             var audience = platformHandle.getAudienceForPlayer(player);
@@ -319,12 +345,13 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
      *
      * @param registered whether the user is registered
      * @param audience the player's audience
+     * @param title whether the title and subtitle are shown too
      */
-    private void sendInfoMessage(boolean registered, Audience audience) {
+    private void sendInfoMessage(boolean registered, Audience audience, boolean title) {
         if (audience == null) return;
         audience.sendMessage(
                 plugin.getMessages().getMessage(registered ? "prompt.login" : "prompt.register"));
-        if (!plugin.getConfiguration().get(ConfigurationKeys.USE_TITLES)) return;
+        if (!title || !plugin.getConfiguration().get(ConfigurationKeys.USE_TITLES)) return;
         var toRefresh =
                 plugin.getConfiguration()
                         .get(ConfigurationKeys.MILLISECONDS_TO_REFRESH_NOTIFICATION);
@@ -365,11 +392,12 @@ public class AuthenticAuthorizationProvider<P, S> extends AuthenticHandler<P, S>
     /** Notifies all unauthorized players with periodic reminder messages and titles. */
     public void notifyUnauthorized() {
         unAuthorized.forEach((uuid, registered) -> {
+            if (dialogOpen(uuid)) return;
             var player = plugin.getPlayerForUUID(uuid);
             if (player == null) return;
             var audience = platformHandle.getAudienceForPlayer(player);
             if (audience == null) return;
-            sendInfoMessage(registered, audience);
+            sendInfoMessage(registered, audience, true);
         });
     }
 

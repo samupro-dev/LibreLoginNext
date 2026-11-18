@@ -153,11 +153,6 @@ public class ConfigurateConfiguration {
     }
 
     /**
-     * Saves current node state to disk.
-     *
-     * @throws IOException if writing to disk fails
-     */
-    /**
      * Returns whether {@link #save()} writes to disk (false when the file uses substitutions).
      *
      * @return {@code true} if changes can be saved
@@ -166,6 +161,11 @@ public class ConfigurateConfiguration {
         return !usesSubstitutions;
     }
 
+    /**
+     * Saves current node state to disk.
+     *
+     * @throws IOException if writing to disk fails
+     */
     public void save() throws IOException {
         if (usesSubstitutions) {
             logger.info(

@@ -36,6 +36,7 @@ import java.util.function.Function;
 import xyz.kyngs.librelogin.api.crypto.CryptoProvider;
 import xyz.kyngs.librelogin.common.config.key.ConfigurationKey;
 import xyz.kyngs.librelogin.common.crypto.VerifyOnlyCryptoProvider;
+import xyz.kyngs.librelogin.common.util.GeneralUtil;
 
 /**
  * Validates config.conf when it is loaded or reloaded, so a bad value is reported with a clear
@@ -93,11 +94,13 @@ public final class ConfigurationValidator {
                             + ": must not be empty, players could not run /login or /register");
         }
 
-        atLeast(helper, SECONDS_TO_AUTHORIZE, 0, problems);
+        // -1 is the documented "disabled" value of these keys (the code treats any value <= 0 so).
+        minusOneOrAtLeast(helper, SECONDS_TO_AUTHORIZE, 0, problems);
         minusOneOrAtLeast(helper, MAX_LOGIN_ATTEMPTS, 1, problems);
         atLeast(helper, MILLISECONDS_TO_EXPIRE_LOGIN_ATTEMPTS, 1, problems);
-        atLeast(helper, MINIMUM_PASSWORD_LENGTH, 0, problems);
-        between(helper, MINIMUM_USERNAME_LENGTH, 1, 16, problems);
+        minusOneOrAtLeast(helper, MINIMUM_PASSWORD_LENGTH, 0, problems);
+        // "0 or lower disables" (documented); a minimum above 16 would reject every name.
+        between(helper, MINIMUM_USERNAME_LENGTH, Integer.MIN_VALUE, 16, problems);
         minusOneOrAtLeast(helper, IP_LIMIT, 0, problems);
         var refresh = read(helper, MILLISECONDS_TO_REFRESH_NOTIFICATION, problems);
         if (refresh != null && refresh > 0 && refresh < 50) {
@@ -109,7 +112,7 @@ public final class ConfigurationValidator {
                             + ")");
         }
         atLeastLong(helper, SESSION_TIMEOUT, 0, problems);
-        atLeast(helper, MAX_IP_LOGIN_ATTEMPTS, 0, problems);
+        minusOneOrAtLeast(helper, MAX_IP_LOGIN_ATTEMPTS, 0, problems);
         atLeastLong(helper, IP_ATTEMPTS_EXPIRE_MILLIS, 1, problems);
         atLeast(helper, AUTO_PURGE_INACTIVE_DAYS, 0, problems);
         atLeast(helper, TOTP_DELAY, 0, problems);
@@ -127,6 +130,16 @@ public final class ConfigurationValidator {
                             + ": must be greater than "
                             + REDIS_HEARTBEAT_INTERVAL_SECONDS.key()
                             + " or presence keys expire between heartbeats");
+        }
+
+        // Every other key: a value of the wrong type is reported here instead of failing on first
+        // use.
+        for (var key : GeneralUtil.extractKeys(ConfigurationKeys.class)) {
+            if (key.defaultValue() == null) continue; // section comment
+            var prefix = key.key() + ":";
+            if (problems.stream().noneMatch(problem -> problem.startsWith(prefix))) {
+                read(helper, key, problems);
+            }
         }
 
         return problems;

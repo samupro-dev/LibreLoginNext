@@ -22,6 +22,7 @@ import xyz.kyngs.librelogin.api.Logger;
 import xyz.kyngs.librelogin.api.configuration.CorruptedConfigurationException;
 import xyz.kyngs.librelogin.common.config.key.ConfigurationKey;
 import xyz.kyngs.librelogin.common.config.migrate.ConfigurationMigrator;
+import xyz.kyngs.librelogin.common.config.migrate.config.RemoveDefaultJdbcUrlMigrator;
 
 /**
  * High-level manager for loading, validating, and querying LibreLogin's main configuration file
@@ -86,7 +87,7 @@ public class HoconPluginConfiguration {
   https://github.com/samupro-dev/LibreLoginNext
 """,
                         logger,
-                        new ConfigurationMigrator[0]);
+                        new ConfigurationMigrator[] {new RemoveDefaultJdbcUrlMigrator()});
 
         var helperAdept = adept.getHelper();
 

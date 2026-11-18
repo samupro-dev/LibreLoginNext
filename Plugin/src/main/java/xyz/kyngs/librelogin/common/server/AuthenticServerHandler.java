@@ -205,7 +205,9 @@ public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
             var last = user.getLastServer();
 
             if (last != null) {
-                var server = plugin.getPlatformHandle().getServer(last, false);
+                // Only a server or world that is already there: getServer would create a missing
+                // world on the main thread just because the player was in it before.
+                var server = findExistingServer(last);
                 if (server != null) {
                     var ping = getLatestPing(server);
                     if (ping != null
@@ -310,5 +312,13 @@ public class AuthenticServerHandler<P, S> implements ServerHandler<P, S> {
     public void registerLimboServer(S server) {
         getLatestPing(server);
         limboServers.add(server);
+    }
+
+    private @Nullable S findExistingServer(String name) {
+        var handle = plugin.getPlatformHandle();
+        for (var server : handle.getServers()) {
+            if (name.equals(handle.getServerName(server))) return server;
+        }
+        return null;
     }
 }

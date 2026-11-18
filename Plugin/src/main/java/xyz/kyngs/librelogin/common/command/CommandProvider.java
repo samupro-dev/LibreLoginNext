@@ -45,6 +45,11 @@ public class CommandProvider<P, S> extends AuthenticHandler<P, S> {
     private final CommandManager<?, ?, ?, ?, ?, ?> manager;
     private final RateLimiter<UUID> limiter;
     private final Cache<UUID, Object> confirmCache;
+    private final LoginCommand<P> loginCommand;
+    private final RegisterCommand<P> registerCommand;
+    private final ChangePasswordCommand<P> changePasswordCommand;
+    private final UnregisterCommand<P> unregisterCommand;
+    private EMailCommand<P> emailCommand;
 
     /**
      * Constructs a new command provider, initializes context resolvers, exception handlers, rate
@@ -224,10 +229,14 @@ public class CommandProvider<P, S> extends AuthenticHandler<P, S> {
                         .maximumSize(10_000)
                         .build();
 
-        manager.registerCommand(new LoginCommand<>(plugin));
-        manager.registerCommand(new RegisterCommand<>(plugin));
-        manager.registerCommand(new UnregisterCommand<>(plugin));
-        manager.registerCommand(new ChangePasswordCommand<>(plugin));
+        loginCommand = new LoginCommand<>(plugin);
+        registerCommand = new RegisterCommand<>(plugin);
+        manager.registerCommand(loginCommand);
+        manager.registerCommand(registerCommand);
+        unregisterCommand = new UnregisterCommand<>(plugin);
+        changePasswordCommand = new ChangePasswordCommand<>(plugin);
+        manager.registerCommand(unregisterCommand);
+        manager.registerCommand(changePasswordCommand);
         manager.registerCommand(new PremiumCommand<>(plugin));
         manager.registerCommand(new CrackedCommand<>(plugin));
         manager.registerCommand(new LibreLoginCommand<>(plugin));
@@ -237,7 +246,8 @@ public class CommandProvider<P, S> extends AuthenticHandler<P, S> {
         }
 
         if (plugin.getEmailHandler() != null) {
-            manager.registerCommand(new EMailCommand<>(plugin));
+            emailCommand = new EMailCommand<>(plugin);
+            manager.registerCommand(emailCommand);
         }
     }
 
@@ -293,6 +303,51 @@ public class CommandProvider<P, S> extends AuthenticHandler<P, S> {
      */
     public RateLimiter<UUID> getLimiter() {
         return limiter;
+    }
+
+    /**
+     * Obtains the registered /login command, used by the login dialog.
+     *
+     * @return the login command
+     */
+    public LoginCommand<P> getLoginCommand() {
+        return loginCommand;
+    }
+
+    /**
+     * Obtains the registered /register command, used by the registration dialog.
+     *
+     * @return the register command
+     */
+    public RegisterCommand<P> getRegisterCommand() {
+        return registerCommand;
+    }
+
+    /**
+     * Obtains the registered /changepassword command, used by the change password dialog.
+     *
+     * @return the change password command
+     */
+    public ChangePasswordCommand<P> getChangePasswordCommand() {
+        return changePasswordCommand;
+    }
+
+    /**
+     * Obtains the registered /unregister command, used by the unregister dialog.
+     *
+     * @return the unregister command
+     */
+    public UnregisterCommand<P> getUnregisterCommand() {
+        return unregisterCommand;
+    }
+
+    /**
+     * Obtains the registered /email command, used by the password reset dialog.
+     *
+     * @return the email command, or {@code null} when email is disabled
+     */
+    public EMailCommand<P> getEmailCommand() {
+        return emailCommand;
     }
 
     /**

@@ -181,11 +181,19 @@ public class EMailCommand<P> extends Command<P> {
                 throw new InvalidCommandArgument(getMessage("error.no-email"));
             }
 
-            if (limiter.tryAndLimit(user.getUuid())) {
+            // Anyone can run this with another player's name on an offline-mode server, so the
+            // destination address is rate limited too, like /email set.
+            if (limiter.tryAndLimit(user.getUuid())
+                    || DESTINATION_LIMITER.tryAndLimit(
+                            user.getEmail().trim().toLowerCase(Locale.ROOT))) {
                 throw new InvalidCommandArgument(getMessage("error.mail-throttle"));
             }
 
-            var token = GeneralUtil.generateAlphanumericText(16);
+            // Re-sending keeps a pending code valid instead of invalidating the one the owner
+            // may be about to type.
+            var pending =
+                    getAuthorizationProvider().getPasswordResetCache().getIfPresent(user.getUuid());
+            var token = pending != null ? pending : GeneralUtil.generateAlphanumericText(16);
 
             audience.sendMessage(getMessage("info.mail-sending"));
 

@@ -22,6 +22,11 @@ public class AuthenticMySQLDatabaseConnector
         extends AuthenticDatabaseConnector<SQLException, Connection>
         implements MySQLDatabaseConnector {
 
+    /**
+     * Default value of the removed jdbc-url key, still found in configs written by older versions.
+     */
+    public static final String LEGACY_DEFAULT_JDBC_URL = "jdbc:mariadb://%host%:%port%/%database%";
+
     private final HikariConfig hikariConfig;
     private HikariDataSource dataSource;
 
@@ -48,11 +53,34 @@ public class AuthenticMySQLDatabaseConnector
                 "sslMode", sslMode == null || sslMode.isBlank() ? "disable" : sslMode);
         hikariConfig.setUsername(get(Configuration.USER));
         hikariConfig.setPassword(get(Configuration.PASSWORD));
-        hikariConfig.setJdbcUrl(
-                get(Configuration.JDBC_URL)
-                        .replace("%host%", get(Configuration.HOST))
-                        .replace("%port%", String.valueOf(get(Configuration.PORT)))
-                        .replace("%database%", get(Configuration.NAME)));
+        var url =
+                "jdbc:mariadb://"
+                        + get(Configuration.HOST)
+                        + ":"
+                        + get(Configuration.PORT)
+                        + "/"
+                        + get(Configuration.NAME);
+        // jdbc-url was replaced by host/port/database plus "properties"; a customized one from an
+        // older config still works for now.
+        var legacyUrl = plugin.getConfiguration().getHelper().getString(prefix + "jdbc-url");
+        if (legacyUrl != null
+                && !legacyUrl.isBlank()
+                && !legacyUrl.equals(LEGACY_DEFAULT_JDBC_URL)) {
+            plugin.getLogger()
+                    .warn(
+                            prefix
+                                    + "jdbc-url is deprecated and will be removed: move its"
+                                    + " parameters to "
+                                    + prefix
+                                    + "properties and remove it.");
+            url =
+                    legacyUrl
+                            .replace("%host%", get(Configuration.HOST))
+                            .replace("%port%", String.valueOf(get(Configuration.PORT)))
+                            .replace("%database%", get(Configuration.NAME));
+        }
+        hikariConfig.setJdbcUrl(url);
+        get(Configuration.PROPERTIES).forEach(hikariConfig::addDataSourceProperty);
         hikariConfig.setMaximumPoolSize(get(Configuration.POOL_SIZE));
         hikariConfig.setMaxLifetime(get(Configuration.MAX_LIFE_TIME));
         hikariConfig.setKeepaliveTime(keepaliveFor(get(Configuration.MAX_LIFE_TIME)));
@@ -146,13 +174,14 @@ public class AuthenticMySQLDatabaseConnector
                                 + " this if you don't know what you're doing.",
                         ConfigurateHelper::getInt);
 
-        public static final ConfigurationKey<String> JDBC_URL =
+        public static final ConfigurationKey<java.util.Map<String, String>> PROPERTIES =
                 new ConfigurationKey<>(
-                        "jdbc-url",
-                        "jdbc:mariadb://%host%:%port%/%database%",
-                        "The JDBC URL of the database. Don't touch this if you don't know what"
-                                + " you're doing. (Using jdbc:mariadb also works for pure mysql)",
-                        ConfigurateHelper::getString);
+                        "properties",
+                        java.util.Map.of(),
+                        "Extra connection properties passed to the MariaDB/MySQL driver, for"
+                            + " example { allowPublicKeyRetrieval = \"true\" }. They are applied"
+                            + " last and can override the defaults above.",
+                        ConfigurateHelper::getStringMap);
 
         public static final ConfigurationKey<String> SSL_MODE =
                 new ConfigurationKey<>(

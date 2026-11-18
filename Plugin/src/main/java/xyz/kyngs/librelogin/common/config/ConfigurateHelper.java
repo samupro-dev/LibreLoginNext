@@ -96,6 +96,32 @@ public record ConfigurateHelper(CommentedConfigurationNode configuration) {
     }
 
     /**
+     * Reads a map of plain string values (for example extra driver properties).
+     *
+     * @param path the dot-separated path
+     * @return the map, or null if the node is missing
+     */
+    public Map<String, String> getStringMap(String path) {
+        return configurationFunction(
+                path,
+                node -> {
+                    if (!node.isMap()) {
+                        throw new CorruptedConfigurationException("Node is not a map!");
+                    }
+                    var map = new java.util.LinkedHashMap<String, String>();
+                    for (var entry : node.childrenMap().entrySet()) {
+                        var value = entry.getValue();
+                        if (value.isMap() || value.isList()) {
+                            throw new CorruptedConfigurationException(
+                                    "Value of '" + entry.getKey() + "' must be a single value");
+                        }
+                        map.put(String.valueOf(entry.getKey()), value.getString());
+                    }
+                    return map;
+                });
+    }
+
+    /**
      * Reads a list of typed objects from the specified path.
      *
      * @param <T> the element type
@@ -202,6 +228,10 @@ public record ConfigurateHelper(CommentedConfigurationNode configuration) {
         } catch (CorruptedConfigurationException e) {
             throw new RuntimeException(
                     "Corrupted configuration at '" + path + "': " + e.getMessage(), e);
+        } catch (SerializationException e) {
+            // A value of the wrong type (e.g. "sixty" for a number) must be reported, not silently
+            // replaced by the default.
+            throw new RuntimeException("Invalid value at '" + path + "': " + e.getMessage(), e);
         } catch (Exception e) {
             return null;
         }

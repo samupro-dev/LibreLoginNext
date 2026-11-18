@@ -30,7 +30,7 @@ jobs:
       - name: Build with Gradle
         run: |
           chmod +x ./gradlew
-          ./gradlew build shadowJar
+          ./gradlew build
           find . -type f -name "*.jar" -exec ls -lh {} \;
 
       # Upload

@@ -12,9 +12,11 @@ import co.aikar.commands.annotation.CommandAlias;
 import co.aikar.commands.annotation.CommandCompletion;
 import co.aikar.commands.annotation.CommandPermission;
 import co.aikar.commands.annotation.Default;
+import co.aikar.commands.annotation.Optional;
 import co.aikar.commands.annotation.Private;
 import co.aikar.commands.annotation.Single;
 import co.aikar.commands.annotation.Syntax;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import xyz.kyngs.librelogin.api.event.events.WrongPasswordEvent.AuthenticationSource;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
@@ -53,7 +55,19 @@ public class UnregisterCommand<P> extends Command<P> {
     @Default
     @Syntax("{@@syntax.unregister}")
     @CommandCompletion("%autocomplete.unregister")
-    public CompletionStage<Void> onUnregister(Audience sender, @Single String password) {
+    public CompletionStage<Void> onUnregister(Audience sender, @Single @Optional String password) {
+        if (password == null) {
+            var player = getPlayer(sender);
+            if (!plugin.getConfiguration().get(ALLOW_PLAYER_UNREGISTER)) {
+                throw new InvalidCommandArgument(getMessage("error.command-disabled"));
+            }
+            checkAuthorized(player);
+            var dialogs = plugin.getAuthDialogs();
+            if (dialogs != null && dialogs.showUnregister(player)) {
+                return CompletableFuture.completedFuture(null);
+            }
+            throw new co.aikar.commands.InvalidCommandArgument(true);
+        }
         return runAsync(() -> {
             var player = getPlayer(sender);
             if (!plugin.getConfiguration().get(ALLOW_PLAYER_UNREGISTER)) {
@@ -85,6 +99,8 @@ public class UnregisterCommand<P> extends Command<P> {
             user.setHashedPassword(null);
             user.setSecret(null);
             user.setEmail(null);
+            // A remembered session would log the passwordless account back in from this IP.
+            revokeSessions(user);
             getDatabaseProvider().updateUser(user);
 
             plugin.getPlatformHandle().kick(player, getMessage("kick.unregistered"));

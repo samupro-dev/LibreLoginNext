@@ -46,6 +46,8 @@ public class AuthenticPostgreSQLDatabaseConnector
         }
         hikariConfig.addDataSourceProperty("sslmode", sslMode);
 
+        // Sends a batch as multi-row INSERTs instead of one statement per row (migrations).
+        hikariConfig.addDataSourceProperty("reWriteBatchedInserts", "true");
         hikariConfig.setUsername(get(Configuration.USER));
         hikariConfig.setPassword(get(Configuration.PASSWORD));
         hikariConfig.setJdbcUrl(
@@ -57,6 +59,7 @@ public class AuthenticPostgreSQLDatabaseConnector
                         + get(Configuration.NAME)
                         + "?sslmode="
                         + sslMode);
+        get(Configuration.PROPERTIES).forEach(hikariConfig::addDataSourceProperty);
         hikariConfig.setMaximumPoolSize(get(Configuration.POOL_SIZE));
         hikariConfig.setMaxLifetime(get(Configuration.MAX_LIFE_TIME));
         hikariConfig.setKeepaliveTime(keepaliveFor(get(Configuration.MAX_LIFE_TIME)));
@@ -112,6 +115,15 @@ public class AuthenticPostgreSQLDatabaseConnector
 
     /** Configuration keys specific to PostgreSQL database connections. */
     public static final class Configuration {
+
+        public static final ConfigurationKey<java.util.Map<String, String>> PROPERTIES =
+                new ConfigurationKey<>(
+                        "properties",
+                        java.util.Map.of(),
+                        "Extra connection properties passed to the PostgreSQL driver, for example {"
+                            + " ApplicationName = \"LibreLogin\" }. They are applied last and can"
+                            + " override the defaults above.",
+                        ConfigurateHelper::getStringMap);
 
         public static final ConfigurationKey<String> HOST =
                 new ConfigurationKey<>(

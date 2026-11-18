@@ -22,7 +22,10 @@ import io.netty.util.AttributeKey;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.RejectedExecutionException;
 import xyz.kyngs.librelogin.api.event.exception.EventCancelledException;
+import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 import xyz.kyngs.librelogin.common.config.ConfigurationKeys;
 import xyz.kyngs.librelogin.common.listener.AuthenticListeners;
 import xyz.kyngs.librelogin.common.util.GeneralUtil;
@@ -183,7 +186,14 @@ public class VelocityListeners
      */
     @Subscribe
     public void onDisconnect(DisconnectEvent event) {
-        GeneralUtil.runAsync(() -> onPlayerDisconnect(event.getPlayer()));
+        // In-memory cleanup only (the last-server write is offloaded by onExit), so it runs here:
+        // queued on the bounded worker pool it could be rejected and leak the player's state.
+        try {
+            onPlayerDisconnect(event.getPlayer());
+        } catch (RuntimeException e) {
+            plugin.getLogger()
+                    .error("Disconnect cleanup failed for " + event.getPlayer().getUsername(), e);
+        }
     }
 
     /**
@@ -250,25 +260,52 @@ public class VelocityListeners
             }
         }
 
-        return EventTask.async(() -> {
-            var result =
-                    onPreLogin(
-                            event.getUsername(),
-                            event.getConnection().getRemoteAddress().getAddress());
+        // EventTask.async runs on Velocity's unbounded per-plugin pool; the Mojang and database
+        // work of a pre-login goes through the bounded login executor instead, as on Paper.
+        var done = new CompletableFuture<Void>();
+        try {
+            AuthenticLibreLogin.getLoginExecutor()
+                    .execute(() -> {
+                        try {
+                            var result =
+                                    onPreLogin(
+                                            event.getUsername(),
+                                            event.getConnection().getRemoteAddress().getAddress());
 
-            event.setResult(
-                    switch (result.state()) {
-                        case DENIED -> {
-                            assert result.message() != null;
-                            yield PreLoginEvent.PreLoginComponentResult.denied(
-                                    VelocityAudience.toNative(result.message()));
+                            event.setResult(
+                                    switch (result.state()) {
+                                        case DENIED -> {
+                                            assert result.message() != null;
+                                            yield PreLoginEvent.PreLoginComponentResult.denied(
+                                                    VelocityAudience.toNative(result.message()));
+                                        }
+                                        case FORCE_ONLINE ->
+                                                PreLoginEvent.PreLoginComponentResult
+                                                        .forceOnlineMode();
+                                        case FORCE_OFFLINE ->
+                                                PreLoginEvent.PreLoginComponentResult
+                                                        .forceOfflineMode();
+                                    });
+                        } catch (Throwable t) {
+                            plugin.getLogger()
+                                    .error("Pre-login check failed for " + event.getUsername(), t);
+                            event.setResult(
+                                    PreLoginEvent.PreLoginComponentResult.denied(
+                                            VelocityAudience.toNative(
+                                                    plugin.getMessages()
+                                                            .getMessage("kick.internal-error"))));
+                        } finally {
+                            done.complete(null);
                         }
-                        case FORCE_ONLINE ->
-                                PreLoginEvent.PreLoginComponentResult.forceOnlineMode();
-                        case FORCE_OFFLINE ->
-                                PreLoginEvent.PreLoginComponentResult.forceOfflineMode();
                     });
-        });
+        } catch (RejectedExecutionException e) {
+            event.setResult(
+                    PreLoginEvent.PreLoginComponentResult.denied(
+                            VelocityAudience.toNative(
+                                    plugin.getMessages().getMessage("kick.server-busy"))));
+            return null;
+        }
+        return EventTask.resumeWhenComplete(done);
     }
 
     /**

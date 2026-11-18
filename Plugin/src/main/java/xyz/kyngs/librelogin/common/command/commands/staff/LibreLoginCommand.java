@@ -13,7 +13,6 @@ import co.aikar.commands.annotation.CommandAlias;
 import co.aikar.commands.annotation.CommandCompletion;
 import co.aikar.commands.annotation.CommandPermission;
 import co.aikar.commands.annotation.Default;
-import co.aikar.commands.annotation.Private;
 import co.aikar.commands.annotation.Subcommand;
 import co.aikar.commands.annotation.Syntax;
 import com.google.gson.JsonArray;
@@ -440,9 +439,16 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
                                     ? text("info.value-na")
                                     : user.getPremiumUUID().toString(),
                             "%last_seen%",
-                            DATE_TIME_FORMATTER.format(user.getLastSeen().toLocalDateTime()),
+                            // Migrated and locked accounts can have no dates.
+                            user.getLastSeen() == null
+                                    ? text("info.value-na")
+                                    : DATE_TIME_FORMATTER.format(
+                                            user.getLastSeen().toLocalDateTime()),
                             "%joined%",
-                            DATE_TIME_FORMATTER.format(user.getJoinDate().toLocalDateTime()),
+                            user.getJoinDate() == null
+                                    ? text("info.value-na")
+                                    : DATE_TIME_FORMATTER.format(
+                                            user.getJoinDate().toLocalDateTime()),
                             "%2fa%",
                             text(
                                     user.getSecret() != null
@@ -567,6 +573,9 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
             user.setIp(null);
             user.setLastAuthentication(null);
             user.setPremiumUUID(null);
+            // The name can now be registered by someone else; the old recovery address must
+            // not keep access to it through /email reset.
+            user.setEmail(null);
             getDatabaseProvider().updateUser(user);
 
             audience.sendMessage(getMessage("info.edited"));
@@ -700,7 +709,6 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
      * @param password the password
      * @return a completion stage representing execution
      */
-    @Private
     @Subcommand("user register")
     @CommandPermission("librelogin.admin.user.register")
     @Syntax("{@@syntax.user-register}")
@@ -857,7 +865,6 @@ public class LibreLoginCommand<P> extends StaffCommand<P> {
      * @param password the new password
      * @return a completion stage representing execution
      */
-    @Private
     @Subcommand("user setpassword")
     @CommandPermission("librelogin.admin.user.setpassword")
     @Syntax("{@@syntax.user-set-password}")

@@ -1046,6 +1046,255 @@ public class MessageKeys {
                     "Attempting /2fa confirm without running /2fa first.",
                     ConfigurateHelper::getString);
 
+    public static final ConfigurationKey<?> DIALOG =
+            ConfigurationKey.getComment(
+                    "dialog",
+                    """
+                    Login and registration dialogs, shown when dialogs.enabled is true in config.conf. Errors reuse the error.* and totp.* messages.
+                    """);
+
+    public static final ConfigurationKey<String> DIALOG_LOGIN_TITLE =
+            new ConfigurationKey<>(
+                    "dialog.login.title",
+                    "<gold>Login",
+                    "Title of the login dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_LOGIN_TEXT =
+            new ConfigurationKey<>(
+                    "dialog.login.text",
+                    "Welcome back! Enter your password to log in.",
+                    "Text shown in the login dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_LOGIN_PASSWORD =
+            new ConfigurationKey<>(
+                    "dialog.login.password",
+                    "Password",
+                    "Label of the password field in the login dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_LOGIN_BUTTON =
+            new ConfigurationKey<>(
+                    "dialog.login.button",
+                    "<green>Log in",
+                    "Login dialog confirm button.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CODE_TITLE =
+            new ConfigurationKey<>(
+                    "dialog.code.title",
+                    "<gold>Two-factor authentication",
+                    "Title of the 2FA code dialog, shown after the right password for accounts with"
+                            + " 2FA.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CODE_TEXT =
+            new ConfigurationKey<>(
+                    "dialog.code.text",
+                    "Enter the code shown by your authenticator app.",
+                    "Text shown in the 2FA code dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CODE_CODE =
+            new ConfigurationKey<>(
+                    "dialog.code.code",
+                    "2FA code",
+                    "Label of the code field in the 2FA code dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CODE_BUTTON =
+            new ConfigurationKey<>(
+                    "dialog.code.button",
+                    "<green>Confirm",
+                    "2FA code dialog confirm button.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_REGISTER_TITLE =
+            new ConfigurationKey<>(
+                    "dialog.register.title",
+                    "<gold>Register",
+                    "Title of the registration dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_REGISTER_TEXT =
+            new ConfigurationKey<>(
+                    "dialog.register.text",
+                    "Welcome! Choose a password to register your account.",
+                    "Text shown in the registration dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_REGISTER_PASSWORD =
+            new ConfigurationKey<>(
+                    "dialog.register.password",
+                    "Password",
+                    "Label of the password field in the registration dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_REGISTER_PASSWORD_REPEAT =
+            new ConfigurationKey<>(
+                    "dialog.register.password-repeat",
+                    "Repeat password",
+                    "Label of the repeated password field, shown when require-password-confirmation"
+                            + " is enabled.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_REGISTER_BUTTON =
+            new ConfigurationKey<>(
+                    "dialog.register.button",
+                    "<green>Register",
+                    "Registration dialog confirm button.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_LOGIN_FORGOT_BUTTON =
+            new ConfigurationKey<>(
+                    "dialog.login.forgot-button",
+                    "<yellow>Forgot password?",
+                    "Login dialog button that emails a password reset code; shown only when email"
+                            + " is enabled.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_RESET_TITLE =
+            new ConfigurationKey<>(
+                    "dialog.reset.title",
+                    "<gold>Reset password",
+                    "Title of the password reset dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_RESET_TEXT =
+            new ConfigurationKey<>(
+                    "dialog.reset.text",
+                    "Enter the code sent to your email and choose a new password.",
+                    "Text shown in the password reset dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_RESET_TOKEN =
+            new ConfigurationKey<>(
+                    "dialog.reset.token",
+                    "Code from the email",
+                    "Label of the email code field in the password reset dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_RESET_PASSWORD =
+            new ConfigurationKey<>(
+                    "dialog.reset.password",
+                    "New password",
+                    "Label of the new password field in the password reset dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_RESET_PASSWORD_REPEAT =
+            new ConfigurationKey<>(
+                    "dialog.reset.password-repeat",
+                    "Repeat new password",
+                    "Label of the repeated new password field in the password reset dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_RESET_BUTTON =
+            new ConfigurationKey<>(
+                    "dialog.reset.button",
+                    "<green>Reset password",
+                    "Password reset dialog confirm button.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_RESET_BACK_BUTTON =
+            new ConfigurationKey<>(
+                    "dialog.reset.back-button",
+                    "Back",
+                    "Password reset dialog button that returns to the login dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CHANGE_PASSWORD_TITLE =
+            new ConfigurationKey<>(
+                    "dialog.change-password.title",
+                    "<gold>Change password",
+                    "Title of the change password dialog (/changepassword without arguments).",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CHANGE_PASSWORD_TEXT =
+            new ConfigurationKey<>(
+                    "dialog.change-password.text",
+                    "Enter your current password and choose a new one.",
+                    "Text shown in the change password dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CHANGE_PASSWORD_OLD_PASSWORD =
+            new ConfigurationKey<>(
+                    "dialog.change-password.old-password",
+                    "Current password",
+                    "Label of the current password field in the change password dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CHANGE_PASSWORD_PASSWORD =
+            new ConfigurationKey<>(
+                    "dialog.change-password.password",
+                    "New password",
+                    "Label of the new password field in the change password dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CHANGE_PASSWORD_PASSWORD_REPEAT =
+            new ConfigurationKey<>(
+                    "dialog.change-password.password-repeat",
+                    "Repeat new password",
+                    "Label of the repeated new password field in the change password dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CHANGE_PASSWORD_BUTTON =
+            new ConfigurationKey<>(
+                    "dialog.change-password.button",
+                    "<green>Change password",
+                    "Change password dialog confirm button.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_UNREGISTER_TITLE =
+            new ConfigurationKey<>(
+                    "dialog.unregister.title",
+                    "<red>Unregister",
+                    "Title of the unregister dialog (/unregister without arguments).",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_UNREGISTER_TEXT =
+            new ConfigurationKey<>(
+                    "dialog.unregister.text",
+                    "This removes your password, 2FA and email. You will be disconnected and will"
+                            + " have to register again.",
+                    "Text shown in the unregister dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_UNREGISTER_PASSWORD =
+            new ConfigurationKey<>(
+                    "dialog.unregister.password",
+                    "Password",
+                    "Label of the password field in the unregister dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_UNREGISTER_BUTTON =
+            new ConfigurationKey<>(
+                    "dialog.unregister.button",
+                    "<red>Unregister",
+                    "Unregister dialog confirm button.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_CANCEL_BUTTON =
+            new ConfigurationKey<>(
+                    "dialog.cancel-button",
+                    "Cancel",
+                    "Button that closes the change password and unregister dialogs.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_EXIT_BUTTON =
+            new ConfigurationKey<>(
+                    "dialog.exit-button",
+                    "<red>Disconnect",
+                    "Button that leaves the server from a login or registration dialog.",
+                    ConfigurateHelper::getString);
+
+    public static final ConfigurationKey<String> DIALOG_EXIT_KICK =
+            new ConfigurationKey<>(
+                    "dialog.exit-kick",
+                    "You left the login screen.",
+                    "Disconnect reason after pressing the dialog's disconnect button.",
+                    ConfigurateHelper::getString);
+
     public static final ConfigurationKey<String> TOTP_SHOW_INFO =
             new ConfigurationKey<>(
                     "totp.show-info",

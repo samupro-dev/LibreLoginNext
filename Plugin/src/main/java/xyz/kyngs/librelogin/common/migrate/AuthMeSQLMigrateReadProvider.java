@@ -117,13 +117,17 @@ public class AuthMeSQLMigrateReadProvider extends SQLMigrateReadProvider {
                                 password = locked(passwordRaw);
                                 locked.add(nickname);
                             }
+                        } else {
+                            // AuthMe accounts are never premium: without a password the name
+                            // would be claimable with the old owner's email attached.
+                            password = locked(null);
+                            locked.add(nickname);
                         }
 
                         if (email != null
                                 && (email.isBlank()
                                         || AUTHME_NO_EMAIL.equalsIgnoreCase(email.trim()))) {
-                            // AuthMe's "no email" placeholder must not receive reset
-                            // tokens.
+                            // AuthMe's "no email" placeholder must not receive reset tokens.
                             email = null;
                         }
 

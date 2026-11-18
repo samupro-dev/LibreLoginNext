@@ -33,7 +33,7 @@ public abstract class AuthenticDatabaseConnector<E extends Exception, I>
     private static final int PROBE_TIMEOUT_SECONDS = 2;
 
     protected final AuthenticLibreLogin<?, ?> plugin;
-    private final String prefix;
+    protected final String prefix;
     private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
     protected volatile boolean connected = false;
     private final AtomicBoolean probing = new AtomicBoolean(false);

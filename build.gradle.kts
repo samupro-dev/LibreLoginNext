@@ -8,7 +8,7 @@ plugins {
 
 defaultTasks("shadowJar")
 
-version = "0.26.3"
+version = "0.26.4"
 
 subprojects {
     /*

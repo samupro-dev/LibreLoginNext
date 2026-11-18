@@ -10,6 +10,7 @@ import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.AUTO_PURGE_IN
 import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.CHECK_FOR_UPDATES;
 import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.DATABASE_TYPE;
 import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.DEFAULT_CRYPTO_PROVIDER;
+import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.DIALOGS_ENABLED;
 import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.FORBIDDEN_PASSWORDS_DOWNLOAD;
 import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.IP_HASH_SALT;
 import static xyz.kyngs.librelogin.common.config.ConfigurationKeys.IP_STORAGE_MODE;
@@ -105,6 +106,7 @@ import xyz.kyngs.librelogin.common.database.connector.DatabaseConnectorRegistrat
 import xyz.kyngs.librelogin.common.database.provider.LibreLoginMySQLDatabaseProvider;
 import xyz.kyngs.librelogin.common.database.provider.LibreLoginPostgreSQLDatabaseProvider;
 import xyz.kyngs.librelogin.common.database.provider.LibreLoginSQLiteDatabaseProvider;
+import xyz.kyngs.librelogin.common.dialog.AuthDialogs;
 import xyz.kyngs.librelogin.common.event.AuthenticEventProvider;
 import xyz.kyngs.librelogin.common.image.AuthenticImageProjector;
 import xyz.kyngs.librelogin.common.integration.FloodgateIntegration;
@@ -260,6 +262,7 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
     private AuthenticServerHandler<P, S> serverHandler;
     private TOTPProvider totpProvider;
     private AuthenticImageProjector<P, S> imageProjector;
+    private AuthDialogs<P> authDialogs;
     private FloodgateIntegration floodgateApi;
     private LuckPermsIntegration<P, S> luckpermsApi;
     private SemanticVersion version;
@@ -430,6 +433,15 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
     @Override
     public AuthenticImageProjector<P, S> getImageProjector() {
         return imageProjector;
+    }
+
+    /**
+     * Obtains the login and registration dialogs.
+     *
+     * @return the dialogs, or {@code null} when disabled or unavailable
+     */
+    public AuthDialogs<P> getAuthDialogs() {
+        return authDialogs;
     }
 
     @Override
@@ -610,6 +622,18 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
 
         authorizationProvider = new AuthenticAuthorizationProvider<>(this);
         commandProvider = new CommandProvider<>(this);
+
+        try {
+            authDialogs = configuration.get(DIALOGS_ENABLED) ? provideAuthDialogs() : null;
+            if (authDialogs != null) authDialogs.register();
+        } catch (LinkageError e) {
+            // Optional like the QR map: an incompatible PacketEvents must not block logins.
+            authDialogs = null;
+            logger.warn(
+                    "The installed PacketEvents version is not compatible with this build of"
+                            + " LibreLogin Next ({}); login and registration dialogs are disabled.",
+                    e.toString());
+        }
 
         if (version.dev()) {
             logger.warn("!! YOU ARE RUNNING A DEVELOPMENT BUILD OF LIBRELOGIN NEXT !!");
@@ -1113,6 +1137,15 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
 
     /** Shuts down database connections, integration listeners, and background executor pools. */
     protected void disable() {
+        var dialogs = authDialogs;
+        authDialogs = null;
+        if (dialogs != null) {
+            try {
+                dialogs.unregister();
+            } catch (Throwable t) {
+                logger.error("Failed to unregister the dialog listener cleanly", t);
+            }
+        }
         if (commandProvider != null) {
             try {
                 commandProvider.unregister();
@@ -1218,6 +1251,13 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
     protected abstract AuthenticImageProjector<P, S> provideImageProjector();
 
     /**
+     * Provides the login and registration dialogs for this platform.
+     *
+     * @return the dialogs, or {@code null} when PacketEvents is not available
+     */
+    protected abstract AuthDialogs<P> provideAuthDialogs();
+
+    /**
      * Resolves a premium user by username, throwing an {@link InvalidCommandArgument} if resolution
      * fails.
      *
@@ -1268,6 +1308,10 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
     public void migrate(ReadDatabaseProvider from, WriteDatabaseProvider to) {
         logger.info("Reading legacy authentication records...");
         var users = from.getAllUsers();
+        // Imported rows follow privacy.ip-storage-mode like every other stored IP.
+        for (var user : users) {
+            user.setIp(anonymizeIP(user.getIp()));
+        }
         logger.info("Read {} users, writing records to destination database...", users.size());
         to.insertUsers(users);
         logger.info("Migration completed successfully.");
@@ -1387,6 +1431,8 @@ public abstract class AuthenticLibreLogin<P, S> implements LibreLoginPlugin<P, S
 
     @Override
     public boolean isPresent(UUID uuid) {
+        // Players on this node are known without asking Redis.
+        if (getPlayerForUUID(uuid) != null) return true;
         if (redisService != null
                 && redisService.isConnected()
                 && redisService.getPresenceProvider() != null) {

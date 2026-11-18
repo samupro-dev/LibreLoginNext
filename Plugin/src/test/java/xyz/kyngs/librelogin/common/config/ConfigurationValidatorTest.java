@@ -60,6 +60,15 @@ class ConfigurationValidatorTest {
     }
 
     @Test
+    void reportsValuesOfTheWrongType() {
+        var problems = validate(Map.of("seconds-to-authorize", "sixty", "use-titles", "maybe"));
+        var report = String.join(" | ", problems);
+        assertEquals(2, problems.size(), report);
+        assertTrue(
+                problems.stream().allMatch(problem -> problem.contains("invalid value")), report);
+    }
+
+    @Test
     void acceptsDisabledValues() {
         assertEquals(
                 List.of(),
@@ -68,7 +77,11 @@ class ConfigurationValidatorTest {
                                 "max-login-attempts", -1,
                                 "milliseconds-to-refresh-notification", 0,
                                 "ip-limit", -1,
-                                "session-timeout", 0L)));
+                                "session-timeout", 0L,
+                                "seconds-to-authorize", -1,
+                                "minimum-password-length", -1,
+                                "minimum-username-length", 0,
+                                "login-security.max-ip-login-attempts", -1)));
     }
 
     @Test

@@ -30,6 +30,8 @@ import xyz.kyngs.librelogin.api.event.exception.EventCancelledException;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 import xyz.kyngs.librelogin.common.SLF4JLogger;
 import xyz.kyngs.librelogin.common.ShutdownException;
+import xyz.kyngs.librelogin.common.dialog.AuthDialogs;
+import xyz.kyngs.librelogin.common.dialog.PacketEventsAuthDialogs;
 import xyz.kyngs.librelogin.common.image.AuthenticImageProjector;
 import xyz.kyngs.librelogin.common.image.packetevents.PacketEventsImageProjector;
 import xyz.kyngs.librelogin.common.util.CancellableTask;
@@ -62,14 +64,45 @@ public class VelocityLibreLogin extends AuthenticLibreLogin<Player, RegisteredSe
         this.bootstrap = bootstrap;
     }
 
+    // Not a PacketChatBlocker field: Velocity's injector reads the field types, and that class
+    // needs PacketEvents, which is optional on Velocity.
+    private volatile Runnable stopChatBlocker;
+
     @Override
     protected void enable() {
         super.enable();
+        if (pluginPresent("packetevents")) {
+            try {
+                stopChatBlocker = PacketChatBlocker.start(this);
+            } catch (LinkageError e) {
+                getLogger()
+                        .warn(
+                                "The installed PacketEvents version is not compatible with this"
+                                    + " build of LibreLogin Next ({}); chat of players who are not"
+                                    + " logged in is blocked by events only.",
+                                e.toString());
+            }
+        } else {
+            getLogger()
+                    .warn(
+                            "PacketEvents is not installed on the proxy, so some features are"
+                                    + " unavailable. Install the Velocity build from"
+                                    + " https://modrinth.com/plugin/packetevents to enable them.");
+        }
         getLogger().info("LibreLogin Next version " + getVersion() + " enabled!");
     }
 
     @Override
     protected void disable() {
+        var stop = stopChatBlocker;
+        stopChatBlocker = null;
+        if (stop != null) {
+            try {
+                stop.run();
+            } catch (Throwable t) {
+                getLogger().error("Failed to unregister the chat packet listener cleanly", t);
+            }
+        }
         super.disable();
     }
 
@@ -122,7 +155,7 @@ public class VelocityLibreLogin extends AuthenticLibreLogin<Player, RegisteredSe
                             if (throwable != null) {
                                 getLogger()
                                         .warn(
-                                                "Failed to connect player {} to lobby {}:" + " {}",
+                                                "Failed to connect player {} to lobby {}: {}",
                                                 player.getUsername(),
                                                 lobby.getServerInfo().getName(),
                                                 GeneralUtil.getFurthestCause(throwable)
@@ -188,14 +221,17 @@ public class VelocityLibreLogin extends AuthenticLibreLogin<Player, RegisteredSe
     @Override
     protected AuthenticImageProjector<Player, RegisteredServer> provideImageProjector() {
         if (!pluginPresent("packetevents")) {
-            getLogger()
-                    .info(
-                            "PacketEvents is not installed on the proxy; 2FA QR maps are"
-                                    + " unavailable and the secret key is shown in chat instead.");
             return null;
         }
-        getLogger().info("PacketEvents integration initialized; 2FA map projection enabled.");
         return new PacketEventsImageProjector<>(this);
+    }
+
+    @Override
+    protected AuthDialogs<Player> provideAuthDialogs() {
+        if (!pluginPresent("packetevents")) {
+            return null;
+        }
+        return new PacketEventsAuthDialogs<>(this, false, Player::hasPermission);
     }
 
     @Override

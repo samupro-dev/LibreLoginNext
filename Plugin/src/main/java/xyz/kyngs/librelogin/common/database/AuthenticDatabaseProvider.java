@@ -7,6 +7,7 @@
 package xyz.kyngs.librelogin.common.database;
 
 import xyz.kyngs.librelogin.api.database.ReadWriteDatabaseProvider;
+import xyz.kyngs.librelogin.api.database.User;
 import xyz.kyngs.librelogin.api.database.connector.DatabaseConnector;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
 
@@ -45,6 +46,16 @@ public abstract class AuthenticDatabaseProvider<C extends DatabaseConnector<?, ?
     @Override
     public boolean connected() {
         return connector != null && connector.connected();
+    }
+
+    /**
+     * Counts the registered accounts last seen from an IP address (as stored).
+     *
+     * @param ip the stored IP value
+     * @return the number of registered accounts
+     */
+    public long countRegisteredByIP(String ip) {
+        return getByIP(ip).stream().filter(User::isRegistered).count();
     }
 
     /**

@@ -36,8 +36,11 @@ public abstract class LibreLoginSQLDatabaseProvider
         extends AuthenticDatabaseProvider<SQLDatabaseConnector> {
 
     private final Cache<UUID, User> userByUuidCache;
-    private final Cache<String, User> userByNameCache;
-    private final Cache<UUID, User> userByPremiumUuidCache;
+    // Secondary keys map to the UUID only: evicting an account is then a single invalidation of
+    // userByUuidCache, and a stale secondary entry is detected by checking the cached user's
+    // fields.
+    private final Cache<String, UUID> userByNameCache;
+    private final Cache<UUID, UUID> userByPremiumUuidCache;
 
     /**
      * Constructs a new SQL database provider instance.
@@ -48,9 +51,9 @@ public abstract class LibreLoginSQLDatabaseProvider
     public LibreLoginSQLDatabaseProvider(
             SQLDatabaseConnector connector, AuthenticLibreLogin<?, ?> plugin) {
         super(connector, plugin);
-        this.userByUuidCache = newUserCache();
-        this.userByNameCache = newUserCache();
-        this.userByPremiumUuidCache = newUserCache();
+        this.userByUuidCache = newCache();
+        this.userByNameCache = newCache();
+        this.userByPremiumUuidCache = newCache();
     }
 
     /**
@@ -58,31 +61,33 @@ public abstract class LibreLoginSQLDatabaseProvider
      * 30 seconds otherwise: without that channel another proxy or backend on the same database
      * could change the row, and a long-lived stale copy would be written back by updateUser.
      */
-    private <K> Cache<K, User> newUserCache() {
+    private <K, V> Cache<K, V> newCache() {
         return Caffeine.newBuilder()
                 .maximumSize(10_000)
                 .expireAfter(
-                        new Expiry<K, User>() {
+                        new Expiry<K, V>() {
                             private long ttl() {
-                                return plugin.getRedisService() != null
+                                // Only while invalidations are actually received.
+                                var redis = plugin.getRedisService();
+                                return redis != null && redis.isConnected()
                                         ? TimeUnit.MINUTES.toNanos(5)
                                         : TimeUnit.SECONDS.toNanos(30);
                             }
 
                             @Override
-                            public long expireAfterCreate(K key, User value, long currentTime) {
+                            public long expireAfterCreate(K key, V value, long currentTime) {
                                 return ttl();
                             }
 
                             @Override
                             public long expireAfterUpdate(
-                                    K key, User value, long currentTime, long currentDuration) {
+                                    K key, V value, long currentTime, long currentDuration) {
                                 return ttl();
                             }
 
                             @Override
                             public long expireAfterRead(
-                                    K key, User value, long currentTime, long currentDuration) {
+                                    K key, V value, long currentTime, long currentDuration) {
                                 return currentDuration;
                             }
                         })
@@ -93,23 +98,37 @@ public abstract class LibreLoginSQLDatabaseProvider
         if (user == null) return;
         userByUuidCache.put(user.getUuid(), user);
         if (user.getLastNickname() != null) {
-            userByNameCache.put(user.getLastNickname().toLowerCase(Locale.ROOT), user);
+            userByNameCache.put(user.getLastNickname().toLowerCase(Locale.ROOT), user.getUuid());
         }
         if (user.getPremiumUUID() != null) {
-            userByPremiumUuidCache.put(user.getPremiumUUID(), user);
+            userByPremiumUuidCache.put(user.getPremiumUUID(), user.getUuid());
         }
     }
 
     /**
-     * Evicts every cache key that maps to the given account. Users are mutable and commands change
-     * them in place (rename, premium switch) before saving, so evicting by the object's current
-     * fields would leave the old name / premium UUID keys pointing at it.
+     * Evicts the given account. Name and premium-UUID entries only point at the UUID, so they stop
+     * resolving with it; users are changed in place (rename, premium switch), which is why a hit is
+     * only trusted when the cached user still has that name or premium UUID.
      */
     private void evictAllKeysFor(UUID uuid) {
         if (uuid == null) return;
         userByUuidCache.invalidate(uuid);
-        userByNameCache.asMap().values().removeIf(u -> uuid.equals(u.getUuid()));
-        userByPremiumUuidCache.asMap().values().removeIf(u -> uuid.equals(u.getUuid()));
+    }
+
+    private @Nullable User cachedByName(String lowerName) {
+        var uuid = userByNameCache.getIfPresent(lowerName);
+        var user = uuid == null ? null : userByUuidCache.getIfPresent(uuid);
+        return user != null
+                        && user.getLastNickname() != null
+                        && user.getLastNickname().toLowerCase(Locale.ROOT).equals(lowerName)
+                ? user
+                : null;
+    }
+
+    private @Nullable User cachedByPremiumUuid(UUID premiumUuid) {
+        var uuid = userByPremiumUuidCache.getIfPresent(premiumUuid);
+        var user = uuid == null ? null : userByUuidCache.getIfPresent(uuid);
+        return user != null && premiumUuid.equals(user.getPremiumUUID()) ? user : null;
     }
 
     /**
@@ -119,6 +138,22 @@ public abstract class LibreLoginSQLDatabaseProvider
      */
     public void invalidateUserByUuid(UUID uuid) {
         evictAllKeysFor(uuid);
+    }
+
+    @Override
+    public long countRegisteredByIP(String ip) {
+        plugin.reportMainThread();
+        return connector.runQuery(connection -> {
+            try (var ps =
+                    connection.prepareStatement(
+                            "SELECT COUNT(*) FROM librepremium_data WHERE ip=? AND hashed_password"
+                                    + " IS NOT NULL")) {
+                ps.setString(1, ip);
+                try (var rs = ps.executeQuery()) {
+                    return rs.next() ? rs.getLong(1) : 0L;
+                }
+            }
+        });
     }
 
     @Override
@@ -145,12 +180,14 @@ public abstract class LibreLoginSQLDatabaseProvider
     public User getByName(String name) {
         if (name == null) return null;
         var lower = name.toLowerCase(Locale.ROOT);
-        var cached = userByNameCache.getIfPresent(lower);
+        var cached = cachedByName(lower);
         if (cached != null) return cached;
         plugin.reportMainThread();
+        // Resolved before borrowing a connection: on MySQL the first call runs its own query.
+        var sql = nicknameLookupQuery();
         var user =
                 connector.runQuery(connection -> {
-                    try (var ps = connection.prepareStatement(nicknameLookupQuery())) {
+                    try (var ps = connection.prepareStatement(sql)) {
                         ps.setString(1, name);
                         try (var rs = ps.executeQuery()) {
                             return getUserFromResult(rs);
@@ -206,14 +243,14 @@ public abstract class LibreLoginSQLDatabaseProvider
     @Override
     public User getByPremiumUUID(UUID uuid) {
         if (uuid == null) return null;
-        var cached = userByPremiumUuidCache.getIfPresent(uuid);
+        var cached = cachedByPremiumUuid(uuid);
         if (cached != null) return cached;
         plugin.reportMainThread();
         var user =
                 connector.runQuery(connection -> {
                     try (var ps =
                             connection.prepareStatement(
-                                    "SELECT * FROM librepremium_data WHERE" + " premium_uuid=?")) {
+                                    "SELECT * FROM librepremium_data WHERE premium_uuid=?")) {
                         ps.setString(1, uuid.toString());
                         try (var rs = ps.executeQuery()) {
                             return getUserFromResult(rs);
@@ -301,55 +338,74 @@ public abstract class LibreLoginSQLDatabaseProvider
             logMigrationSummary(users.size(), 0, 0, invalid, 0);
             return;
         }
-        connector.runQuery(connection -> {
-            // Counted on the table: batch update counts are unreliable across drivers.
-            long before = countUsers(connection);
-            int failed = 0;
-            boolean autoCommit = connection.getAutoCommit();
-            try {
-                connection.setAutoCommit(false);
-                try (var ps =
-                        connection.prepareStatement(
-                                "INSERT "
-                                        + getIgnoreSyntax()
-                                        + " INTO librepremium_data(uuid, premium_uuid,"
-                                        + " hashed_password, salt, algo, last_nickname,"
-                                        + " joined, last_seen, secret, ip,"
-                                        + " last_authentication, last_server, email) VALUES"
-                                        + " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                                        + getIgnoreSuffix())) {
-                    for (User user : valid) {
-                        insertToStatement(ps, user);
-                        ps.addBatch();
-                    }
-                    ps.executeBatch();
-                }
-                connection.commit();
-            } catch (SQLException e) {
-                try {
-                    connection.rollback();
-                } catch (SQLException rollbackEx) {
-                    e.addSuppressed(rollbackEx);
-                }
-                // One bad row aborted the batch (e.g. on PostgreSQL): insert row by row
-                // and report each failure instead of losing every account.
-                plugin.getLogger()
-                        .warn("Batch insert failed ({}); retrying row by row.", e.getMessage());
-                connection.setAutoCommit(true);
-                failed = insertOneByOne(connection, valid);
-            } finally {
-                try {
-                    connection.setAutoCommit(autoCommit);
-                } catch (SQLException ignored) {
-                }
-            }
-            long imported = countUsers(connection) - before;
-            logMigrationSummary(
-                    users.size(), imported, valid.size() - imported - failed, invalid, failed);
-            return null;
-        });
+        // Counted on the table: batch update counts are unreliable across drivers.
+        long before =
+                connector.runQuery(connection -> {
+                    return countUsers(connection);
+                });
+        int failed = 0;
+        // Bounded chunks, each on its own connection and transaction: a long import no longer
+        // holds one connection past the leak-detection threshold, and a failed chunk only
+        // retries its own rows one by one.
+        for (int from = 0; from < valid.size(); from += INSERT_CHUNK_SIZE) {
+            var chunk = valid.subList(from, Math.min(valid.size(), from + INSERT_CHUNK_SIZE));
+            failed +=
+                    connector.runQuery(connection -> {
+                        return insertChunk(connection, chunk);
+                    });
+        }
+        long imported =
+                connector.runQuery(connection -> {
+                    return countUsers(connection);
+                })
+                        - before;
+        logMigrationSummary(
+                users.size(), imported, valid.size() - imported - failed, invalid, failed);
         for (User user : valid) {
             cacheUser(user);
+        }
+    }
+
+    private static final int INSERT_CHUNK_SIZE = 1000;
+
+    private int insertChunk(java.sql.Connection connection, List<User> chunk) throws SQLException {
+        boolean autoCommit = connection.getAutoCommit();
+        try {
+            connection.setAutoCommit(false);
+            try (var ps =
+                    connection.prepareStatement(
+                            "INSERT "
+                                    + getIgnoreSyntax()
+                                    + " INTO librepremium_data(uuid, premium_uuid, hashed_password,"
+                                    + " salt, algo, last_nickname, joined, last_seen, secret, ip,"
+                                    + " last_authentication, last_server, email) VALUES (?, ?, ?,"
+                                    + " ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                    + getIgnoreSuffix())) {
+                for (User user : chunk) {
+                    insertToStatement(ps, user);
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+            connection.commit();
+            return 0;
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+            } catch (SQLException rollbackEx) {
+                e.addSuppressed(rollbackEx);
+            }
+            // One bad row aborted the batch (e.g. on PostgreSQL): insert row by row and report
+            // each failure instead of losing every account of the chunk.
+            plugin.getLogger()
+                    .warn("Batch insert failed ({}); retrying row by row.", e.getMessage());
+            connection.setAutoCommit(true);
+            return insertOneByOne(connection, chunk);
+        } finally {
+            try {
+                connection.setAutoCommit(autoCommit);
+            } catch (SQLException ignored) {
+            }
         }
     }
 
@@ -496,6 +552,16 @@ public abstract class LibreLoginSQLDatabaseProvider
         }
     }
 
+    /**
+     * Drops every cached user. Called when the Redis connection goes up or down: invalidations sent
+     * while it was down are lost, so cached copies may be stale.
+     */
+    public void invalidateAllUsers() {
+        userByUuidCache.invalidateAll();
+        userByNameCache.invalidateAll();
+        userByPremiumUuidCache.invalidateAll();
+    }
+
     @Override
     public int purgeInactiveUsers(int days) {
         if (days <= 0) return 0;
@@ -590,14 +656,13 @@ public abstract class LibreLoginSQLDatabaseProvider
                 try (var ps =
                         connection.prepareStatement(
                                 "INSERT INTO librepremium_data_archive (uuid, premium_uuid,"
-                                        + " hashed_password, salt, algo, last_nickname, joined,"
-                                        + " last_seen, secret, ip, last_authentication,"
-                                        + " last_server, email, archived_at) SELECT uuid,"
-                                        + " premium_uuid, hashed_password, salt, algo,"
-                                        + " last_nickname, joined, last_seen, secret, ip,"
-                                        + " last_authentication, last_server, email,"
-                                        + " CURRENT_TIMESTAMP FROM librepremium_data WHERE"
-                                        + " uuid=?")) {
+                                    + " hashed_password, salt, algo, last_nickname, joined,"
+                                    + " last_seen, secret, ip, last_authentication, last_server,"
+                                    + " email, archived_at) SELECT uuid, premium_uuid,"
+                                    + " hashed_password, salt, algo, last_nickname, joined,"
+                                    + " last_seen, secret, ip, last_authentication, last_server,"
+                                    + " email, CURRENT_TIMESTAMP FROM librepremium_data WHERE"
+                                    + " uuid=?")) {
                     ps.setString(1, user.getUuid().toString());
                     ps.executeUpdate();
                 }
@@ -634,6 +699,10 @@ public abstract class LibreLoginSQLDatabaseProvider
     @Override
     public void validateSchema() {
         connector.runQuery(connection -> {
+            // Fresh tables get uniqueness from the column constraints below; the extra unique
+            // indexes are only for tables created by older versions without them.
+            boolean existed = !getColumnNames(connection).isEmpty();
+
             try (var ps =
                     connection.prepareStatement(
                             "CREATE TABLE IF NOT EXISTS librepremium_data("
@@ -652,58 +721,60 @@ public abstract class LibreLoginSQLDatabaseProvider
 
             var columns = getColumnNames(connection);
 
-            try (var ps = connection.prepareStatement(addUnique("premium_uuid"))) {
-                ps.executeUpdate();
-            } catch (SQLException ignored) {
-                // Index already exists
-            }
+            if (existed)
+                try (var ps = connection.prepareStatement(addUnique("premium_uuid"))) {
+                    ps.executeUpdate();
+                } catch (SQLException ignored) {
+                    // Index already exists
+                }
 
             if (!columns.contains("secret")) {
                 try (var ps =
                         connection.prepareStatement(
-                                "ALTER TABLE librepremium_data ADD COLUMN secret"
-                                        + " VARCHAR(255) NULL DEFAULT NULL")) {
+                                "ALTER TABLE librepremium_data ADD COLUMN secret VARCHAR(255) NULL"
+                                        + " DEFAULT NULL")) {
                     ps.executeUpdate();
                 }
             }
             if (!columns.contains("ip")) {
                 try (var ps =
                         connection.prepareStatement(
-                                "ALTER TABLE librepremium_data ADD COLUMN ip VARCHAR(255)"
-                                        + " NULL DEFAULT NULL")) {
+                                "ALTER TABLE librepremium_data ADD COLUMN ip VARCHAR(255) NULL"
+                                        + " DEFAULT NULL")) {
                     ps.executeUpdate();
                 }
             }
             if (!columns.contains("last_authentication")) {
                 try (var ps =
                         connection.prepareStatement(
-                                "ALTER TABLE librepremium_data ADD COLUMN"
-                                        + " last_authentication TIMESTAMP NULL DEFAULT NULL")) {
+                                "ALTER TABLE librepremium_data ADD COLUMN last_authentication"
+                                        + " TIMESTAMP NULL DEFAULT NULL")) {
                     ps.executeUpdate();
                 }
             }
             if (!columns.contains("last_server")) {
                 try (var ps =
                         connection.prepareStatement(
-                                "ALTER TABLE librepremium_data ADD COLUMN last_server"
-                                        + " VARCHAR(255) NULL DEFAULT NULL")) {
+                                "ALTER TABLE librepremium_data ADD COLUMN last_server VARCHAR(255)"
+                                        + " NULL DEFAULT NULL")) {
                     ps.executeUpdate();
                 }
             }
             if (!columns.contains("email")) {
                 try (var ps =
                         connection.prepareStatement(
-                                "ALTER TABLE librepremium_data ADD COLUMN email"
-                                        + " VARCHAR(255) NULL DEFAULT NULL")) {
+                                "ALTER TABLE librepremium_data ADD COLUMN email VARCHAR(255) NULL"
+                                        + " DEFAULT NULL")) {
                     ps.executeUpdate();
                 }
             }
 
-            try (var ps = connection.prepareStatement(addUnique("last_nickname"))) {
-                ps.executeUpdate();
-            } catch (SQLException ignored) {
-                // Index already exists
-            }
+            if (existed)
+                try (var ps = connection.prepareStatement(addUnique("last_nickname"))) {
+                    ps.executeUpdate();
+                } catch (SQLException ignored) {
+                    // Index already exists
+                }
 
             try (var ps = connection.prepareStatement(addIndex("ip_index", "ip"))) {
                 ps.executeUpdate();
@@ -719,16 +790,16 @@ public abstract class LibreLoginSQLDatabaseProvider
 
             try (var ps =
                     connection.prepareStatement(
-                            "CREATE TABLE IF NOT EXISTS librepremium_data_archive AS SELECT"
-                                    + " * FROM librepremium_data WHERE 1=0")) {
+                            "CREATE TABLE IF NOT EXISTS librepremium_data_archive AS SELECT * FROM"
+                                    + " librepremium_data WHERE 1=0")) {
                 ps.executeUpdate();
             } catch (SQLException ignored) {
                 // Already exists
             }
             try (var ps =
                     connection.prepareStatement(
-                            "ALTER TABLE librepremium_data_archive ADD COLUMN archived_at"
-                                    + " TIMESTAMP NULL")) {
+                            "ALTER TABLE librepremium_data_archive ADD COLUMN archived_at TIMESTAMP"
+                                    + " NULL")) {
                 ps.executeUpdate();
             } catch (SQLException ignored) {
                 // Column already exists

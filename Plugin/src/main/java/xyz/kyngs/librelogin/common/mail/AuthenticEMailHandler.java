@@ -87,7 +87,11 @@ public class AuthenticEMailHandler implements EmailHandler {
                     mail.setSSLCheckServerIdentity(true);
                 }
                 default -> {
-                    mail.setStartTLSEnabled(false);
+                    // Opportunistic STARTTLS: credentials and reset codes are encrypted whenever
+                    // the
+                    // server offers it. No identity check here, so local relays with self-signed
+                    // certificates or without TLS keep working; use 465 or 587 for verified TLS.
+                    mail.setStartTLSEnabled(true);
                     mail.setSSLOnConnect(false);
                 }
             }

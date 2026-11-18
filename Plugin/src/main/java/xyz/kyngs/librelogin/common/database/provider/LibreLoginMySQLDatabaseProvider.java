@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 import xyz.kyngs.librelogin.api.database.connector.MySQLDatabaseConnector;
 import xyz.kyngs.librelogin.common.AuthenticLibreLogin;
-import xyz.kyngs.librelogin.common.database.connector.AuthenticMySQLDatabaseConnector;
 
 /** MySQL-specific implementation of {@link LibreLoginSQLDatabaseProvider}. */
 public class LibreLoginMySQLDatabaseProvider extends LibreLoginSQLDatabaseProvider {
@@ -30,15 +29,12 @@ public class LibreLoginMySQLDatabaseProvider extends LibreLoginSQLDatabaseProvid
 
     @Override
     protected List<String> getColumnNames(Connection connection) throws SQLException {
-        var dbName =
-                ((AuthenticMySQLDatabaseConnector) connector)
-                        .get(AuthenticMySQLDatabaseConnector.Configuration.NAME);
+        // DATABASE() is the database of this connection, also when jdbc-url names another one.
         var sql =
                 "SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE"
-                        + " TABLE_NAME='librepremium_data' AND TABLE_SCHEMA=?";
+                        + " TABLE_NAME='librepremium_data' AND TABLE_SCHEMA=DATABASE()";
         var columns = new ArrayList<String>();
         try (var ps = connection.prepareStatement(sql)) {
-            ps.setString(1, dbName);
             try (var resultSet = ps.executeQuery()) {
                 while (resultSet.next()) {
                     columns.add(resultSet.getString("column_name"));
@@ -71,6 +67,8 @@ public class LibreLoginMySQLDatabaseProvider extends LibreLoginSQLDatabaseProvid
         var ci = caseInsensitiveNickname;
         if (ci == null) {
             ci = detectCaseInsensitiveNickname();
+            // A failed detection is retried later instead of pinning the index-less query forever.
+            if (ci == null) return super.nicknameLookupQuery();
             caseInsensitiveNickname = ci;
         }
         // LOWER(col) cannot use an index in MySQL/MariaDB. With a case-insensitive (*_ci)
@@ -86,16 +84,15 @@ public class LibreLoginMySQLDatabaseProvider extends LibreLoginSQLDatabaseProvid
         return null;
     }
 
-    private boolean detectCaseInsensitiveNickname() {
+    private Boolean detectCaseInsensitiveNickname() {
         try {
             return connector.runQuery(connection -> {
                 try (var ps =
                                 connection.prepareStatement(
-                                        "SELECT COLLATION_NAME FROM"
-                                                + " information_schema.COLUMNS WHERE"
-                                                + " TABLE_SCHEMA = DATABASE() AND TABLE_NAME ="
-                                                + " 'librepremium_data' AND COLUMN_NAME ="
-                                                + " 'last_nickname'");
+                                        "SELECT COLLATION_NAME FROM information_schema.COLUMNS"
+                                            + " WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME ="
+                                            + " 'librepremium_data' AND COLUMN_NAME ="
+                                            + " 'last_nickname'");
                         var rs = ps.executeQuery()) {
                     if (!rs.next()) {
                         return false;
@@ -106,7 +103,7 @@ public class LibreLoginMySQLDatabaseProvider extends LibreLoginSQLDatabaseProvid
                 }
             });
         } catch (RuntimeException e) {
-            return false;
+            return null;
         }
     }
 }
